@@ -2,6 +2,10 @@
 #calculate residuls for TA and DIC analysis
 #libraries
 library(seacarb)
+library(lme4)
+library(lmerTest)
+library(effects)
+library(cowplot)
 
 #load data
 Cdata<-read.csv('chemicaldata_maunalua.csv')
@@ -103,83 +107,90 @@ DIC.diff<-c(W.diff.DIC,BP.diff.DIC)
 Cdata$DIC.diff<-DIC.diff
 
 
-#plot relationship between sgd and delta TA
-model.SGDTA<-lm(Cdata$TA.diff~Cdata$percent_sgd)
+####################Anaysis########################### 
+# run anova to for Wailupe
 
-par(mfrow=c(1,1))
-plot(Cdata$percent_sgd[Cdata$Site=='BP'],Cdata$TA.diff[Cdata$Site=='BP'], xlab='Percent SGD', ylab='delta TA')
-points(Cdata$percent_sgd[Cdata$Site=='W'],Cdata$TA.diff[Cdata$Site=='W'], col='red')
-lines(seq(0,100,0.01),seq(0,100,0.01)*model.SGDTA$coefficients[2]+model.SGDTA$coefficients[1] )
-legend('topright', legend = c('Black Point', 'Wailupe'), col=c('black','red'), pch=21)
+#Make tide just high and low instead of H1, H2, L1, and L2
+Cdata$Tide<-droplevels(Cdata$Tide) #this removes levels that don'e exist anymore (empty spaces for example)
+levels(Cdata$Tide)<-c("H","H","L","L") # this makes H1 and H2 both H and same for L1 and L2
 
-par(mfrow=c(1,1))
-plot(Cdata$percent_sgd[Cdata$Site=='BP' & Cdata$Tide=='L2'],Cdata$TA.diff[Cdata$Site=='BP'& Cdata$Tide=='L2'])
-points(Cdata$percent_sgd[Cdata$Site=='W'& Cdata$Tide=='L2'],Cdata$TA.diff[Cdata$Site=='W'& Cdata$Tide=='L2'], col='red')
-legend('topright', legend = c('Black Point', 'Wailupe'), col=c('black','red'), pch=21)
+modW<-lmer(TA.diff~DIC.diff*Zone*Tide +(1|Season)+(1|Waypoint), data = Cdata[Cdata$Site=='W',])
+anova(modW)
 
 
-#DIC
-model.SGDDIC<-lm(Cdata$DIC.diff~Cdata$percent_sgd)
-
-par(mfrow=c(1,1))
-plot(Cdata$percent_sgd[Cdata$Site=='BP'],Cdata$DIC.diff[Cdata$Site=='BP'], xlab='Percent SGD', ylab='delta DIC')
-points(Cdata$percent_sgd[Cdata$Site=='W'],Cdata$DIC.diff[Cdata$Site=='W'], col='red')
-#lines(seq(0,100,0.01),seq(0,100,0.01)*model.SGDTA$coefficients[2]+model.SGDTA$coefficients[1] )
-legend('topright', legend = c('Black Point', 'Wailupe'), col=c('black','red'), pch=21)
-
-
-#regression between pH and delta pH
-pH2<-Cdata$pH^2
-model.pHTA<-lm(Cdata$TA.diff~Cdata$pH)
-
-par(mfrow=c(1,1))
-plot(Cdata$pH[Cdata$Site=='BP'],Cdata$TA.diff[Cdata$Site=='BP'], xlab = 'pH', ylab = 'Delta TA')
-points(Cdata$pH[Cdata$Site=='W'],Cdata$TA.diff[Cdata$Site=='W'], col='red')
-lines(seq(7.8,8.8,0.01),seq(7.8,8.8,0.01)*model.pHTA$coefficients[2]+model.pHTA$coefficients[1] )
-legend('topright', legend = c('Black Point', 'Wailupe'), col=c('black','red'), pch=21)
-
-#DIC
-#model.pHDIC<-lm(Cdata$DIC.diff~Cdata$pH)
-
-#par(mfrow=c(1,1))
-#plot(Cdata$pH[Cdata$Site=='BP'],Cdata$DIC.diff[Cdata$Site=='BP'], xlab = 'pH', ylab = 'Delta DIC')
-#points(Cdata$pH[Cdata$Site=='W'],Cdata$DIC.diff[Cdata$Site=='W'], col='red')
-#lines(seq(7.8,8.8,0.01),seq(7.8,8.8,0.01)*model.pHDIC$coefficients[2]+model.pHDIC$coefficients[1] )
-#legend('topright', legend = c('Black Point', 'Wailupe'), col=c('black','red'), pch=21)
-
-#pH as a function of DIC
-model.DICpH<-lm(Cdata$pH~Cdata$DIC.diff)
-
-par(mfrow=c(1,1))
-plot(Cdata$DIC.diff[Cdata$Site=='BP'],Cdata$pH[Cdata$Site=='BP'], ylab = 'pH', xlab = 'Delta DIC')
-points(Cdata$DIC.diff[Cdata$Site=='W'],Cdata$pH[Cdata$Site=='W'], col='red')
-lines(seq(-100,300,0.1),seq(-100,300,0.1)*model.DICpH$coefficients[2]+model.DICpH$coefficients[1] )
-legend('topright', legend = c('Black Point', 'Wailupe'), col=c('black','red'), pch=21)
+#make a prediction plot with tide on the sample plot
+# easily to get a dataframe to do it yourself with ggplot2:
+ne.effect <- data.frame(effect("DIC.diff*Zone*Tide", modW,
+                               xlevels = list(DIC.diff = -150:350,
+                                              Zone = unique(Cdata$Zone))))
+#make the plot for wailupe
+W.plot<-ggplot(ne.effect, aes(x = DIC.diff, y = fit, group = Tide, col = Tide)) +
+  theme_bw()  +
+  geom_line(aes(linetype = Tide), size = 1.2) +
+  geom_ribbon(aes(ymin = lower, ymax = upper, linetype = Tide),
+              color = "black", fill = "grey", alpha = 0.1) +
+  xlab('DIC residuals from mixing line')+
+  ylab('TA residuals from mixing line')+
+  ggtitle('Wailupe')+
+  facet_wrap(~ Zone)
 
 
-model.pHSGD<-lm(Cdata$pH~Cdata$percent_sgd)
+#make a prediction plot with zone on the sample plot
+# easily to get a dataframe to do it yourself with ggplot2:
+ne.effect.zone <- data.frame(effect("DIC.diff*Zone*Tide", modW,
+                               xlevels = list(DIC.diff = -150:350,
+                                              Tide = unique(Cdata$Tide))))
+#make the plot for wailupe
+W.plot.zone<-ggplot(ne.effect, aes(x = DIC.diff, y = fit, group = Zone, col = Zone)) +
+  theme_bw()  +
+  geom_line(aes(linetype = Zone), size = 1.2) +
+  geom_ribbon(aes(ymin = lower, ymax = upper, linetype = Zone),
+              color = "black", fill = "grey", alpha = 0.1) +
+  xlab('DIC residuals from mixing line')+
+  ylab('TA residuals from mixing line')+
+  ggtitle('Wailupe')+
+  facet_wrap(~ Tide)
 
-# nutrients
-par(mfrow=c(1,1))
-plot(Cdata$NN[Cdata$Site=='BP'],Cdata$TA.diff[Cdata$Site=='BP'], xlab = 'NN', ylab = 'Delta TA')
-points(Cdata$NN[Cdata$Site=='W'],Cdata$TA.diff[Cdata$Site=='W'], col='red')
-legend('topright', legend = c('Black Point', 'Wailupe'), col=c('black','red'), pch=21)
+# run anova to for BP
+modBP<-lmer(TA.diff~DIC.diff*Zone*Tide +(1|Season)+(1|Waypoint), data = Cdata[Cdata$Site=='BP',])
+anova(modBP)
 
-#TA vs DIC plots
-plot(Cdata$DIC,Cdata$TA, xlab='DIC', ylab='TA')
-plot(Cdata$DIC.diff,Cdata$TA.diff, xlab='delta DIC', ylab='delta TA')
+# easily to get a dataframe to do it yourself with ggplot2:
+ne.effect.BP <- data.frame(effect("DIC.diff*Zone*Tide", modBP,
+                               xlevels = list(DIC.diff = -150:350,
+                                              Zone = unique(Cdata$Zone))))
+#make the plot for wailupe with tide on the same plot
+BP.plot<-ggplot(ne.effect.BP, aes(x = DIC.diff, y = fit, group = Tide, col = Tide)) +
+  theme_bw()  +
+  geom_line(aes(linetype = Tide), size = 1.2) +
+  geom_ribbon(aes(ymin = lower, ymax = upper, linetype = Tide),
+              color = "black", fill = "grey", alpha = 0.1) +
+  xlab('DIC residuals from mixing line')+
+  ylab('TA residuals from mixing line')+
+  ggtitle('Black Point')+
+  facet_wrap(~ Zone)
 
 
-#just low tide
-#pH as a function of DIC
-model.DICpH<-lm(Cdata$pH~Cdata$DIC.diff)
+#make a prediction plot with zone on the sample plot
+# easily to get a dataframe to do it yourself with ggplot2:
+ne.effect.BP.zone <- data.frame(effect("DIC.diff*Zone*Tide", modBP,
+                                    xlevels = list(DIC.diff = -150:350,
+                                                   Tide = unique(Cdata$Tide))))
+#make the plot for BP
+BP.plot.zone<-ggplot(ne.effect.BP.zone, aes(x = DIC.diff, y = fit, group = Zone, col = Zone)) +
+  theme_bw()  +
+  geom_line(aes(linetype = Zone), size = 1.2) +
+  geom_ribbon(aes(ymin = lower, ymax = upper, linetype = Zone),
+              color = "black", fill = "grey", alpha = 0.1) +
+  xlab('DIC residuals from mixing line')+
+  ylab('TA residuals from mixing line')+
+  ggtitle('Black Point')+
+  facet_wrap(~ Tide)
 
-par(mfrow=c(1,1))
-plot(Cdata$DIC.diff[Cdata$Site=='BP' & Cdata$Tide=='L1'],Cdata$pH[Cdata$Site=='BP'& Cdata$Tide=='L1'], ylab = 'pH', xlab = 'Delta DIC')
-points(Cdata$DIC.diff[Cdata$Site=='W'& Cdata$Tide=='L1'],Cdata$pH[Cdata$Site=='W'& Cdata$Tide=='L1'], col='red')
-
-points(Cdata$DIC.diff[Cdata$Site=='BP' & Cdata$Tide=='L2'],Cdata$pH[Cdata$Site=='BP'& Cdata$Tide=='L2'], ylab = 'pH', xlab = 'Delta DIC', pch=19)
-points(Cdata$DIC.diff[Cdata$Site=='W'& Cdata$Tide=='L2'],Cdata$pH[Cdata$Site=='W'& Cdata$Tide=='L2'], col='red', pch=19)
-
-lines(seq(-100,300,0.1),seq(-100,300,0.1)*model.DICpH$coefficients[2]+model.DICpH$coefficients[1] )
-legend('topright', legend = c('Black Point', 'Wailupe'), col=c('black','red'), pch=21)
+##put both plots together using plot_grid
+AllTide<-plot_grid(BP.plot, W.plot, labels=c('A', 'B'), nrow = 2)
+#plot by zone
+AllZone<-plot_grid(BP.plot.zone, W.plot.zone, labels=c('A', 'B'), nrow = 2)
+#save the output in the output folder
+ggsave(filename = 'Output/PlotsbyTide.pdf', plot = AllTide,device = 'pdf', width = 10, height = 8)
+ggsave(filename = 'Output/PlotsbyZone.pdf', plot = AllZone,device = 'pdf', width = 8, height = 8)
