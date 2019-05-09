@@ -129,9 +129,12 @@ W.plot<-ggplot(ne.effect, aes(x = DIC.diff, y = fit, group = Tide, col = Tide)) 
   geom_line(aes(linetype = Tide), size = 1.2) +
   geom_ribbon(aes(ymin = lower, ymax = upper, linetype = Tide),
               color = "black", fill = "grey", alpha = 0.1) +
+  geom_vline(xintercept = 0, lty=2)+ # add a vertical line at 0
+  geom_hline(yintercept = 0, lty=2)+ # add a horizontal line at 0
   xlab('DIC residuals from mixing line')+
   ylab('TA residuals from mixing line')+
   ggtitle('Wailupe')+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+ #remove the gridlines
   facet_wrap(~ Zone)
 
 
@@ -146,9 +149,12 @@ W.plot.zone<-ggplot(ne.effect, aes(x = DIC.diff, y = fit, group = Zone, col = Zo
   geom_line(aes(linetype = Zone), size = 1.2) +
   geom_ribbon(aes(ymin = lower, ymax = upper, linetype = Zone),
               color = "black", fill = "grey", alpha = 0.1) +
+  geom_vline(xintercept = 0, lty=2)+ # add a vertical line at 0
+  geom_hline(yintercept = 0, lty=2)+ # add a horizontal line at 0
   xlab('DIC residuals from mixing line')+
   ylab('TA residuals from mixing line')+
   ggtitle('Wailupe')+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+ #remove the gridlines
   facet_wrap(~ Tide)
 
 # run anova to for BP
@@ -165,9 +171,12 @@ BP.plot<-ggplot(ne.effect.BP, aes(x = DIC.diff, y = fit, group = Tide, col = Tid
   geom_line(aes(linetype = Tide), size = 1.2) +
   geom_ribbon(aes(ymin = lower, ymax = upper, linetype = Tide),
               color = "black", fill = "grey", alpha = 0.1) +
+  geom_vline(xintercept = 0, lty=2)+ # add a vertical line at 0
+  geom_hline(yintercept = 0, lty=2)+ # add a horizontal line at 0
   xlab('DIC residuals from mixing line')+
   ylab('TA residuals from mixing line')+
   ggtitle('Black Point')+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+ #remove the gridlines
   facet_wrap(~ Zone)
 
 
@@ -182,9 +191,12 @@ BP.plot.zone<-ggplot(ne.effect.BP.zone, aes(x = DIC.diff, y = fit, group = Zone,
   geom_line(aes(linetype = Zone), size = 1.2) +
   geom_ribbon(aes(ymin = lower, ymax = upper, linetype = Zone),
               color = "black", fill = "grey", alpha = 0.1) +
+  geom_vline(xintercept = 0, lty=2)+ # add a vertical line at 0
+  geom_hline(yintercept = 0, lty=2)+ # add a horizontal line at 0
   xlab('DIC residuals from mixing line')+
   ylab('TA residuals from mixing line')+
   ggtitle('Black Point')+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+ #remove the gridlines
   facet_wrap(~ Tide)
 
 ##put both plots together using plot_grid
