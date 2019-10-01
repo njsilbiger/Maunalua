@@ -150,8 +150,12 @@ ggplot(Cdata, aes(group = Site))+
 # run anova to for Wailupe
 
 #Make tide just high and low instead of H1, H2, L1, and L2
-Cdata$Tide<-droplevels(Cdata$Tide) #this removes levels that don'e exist anymore (empty spaces for example)
+CData$Tide<-droplevels(Cdata$Tide) #this removes levels that don'e exist anymore (empty spaces for example)
 levels(Cdata$Tide)<-c("H","H","L","L") # this makes H1 and H2 both H and same for L1 and L2
+
+# filter out the zones so that it is only diffures, ambient, and transition
+Cdata$Zone<-Cdata$Zone %>%
+  droplevels()
 
 modW<-lmer(TA.diff~DIC.diff*Zone*Tide +(1|Season)+(1|Waypoint), data = Cdata[Cdata$Site=='W',])
 anova(modW)
