@@ -10,6 +10,8 @@ library(scales)
 library(sf)
 library(gstat)
 library(stars)
+library(lavaan)
+library(piecewiseSEM)
 
 #load data
 Cdata<-read.csv('chemicaldata_maunalua.csv')

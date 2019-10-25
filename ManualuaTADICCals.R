@@ -6,6 +6,10 @@ library(lme4)
 library(lmerTest)
 library(effects)
 library(cowplot)
+library(lavaan)
+library(piecewiseSEM)
+library(semPlot)
+library(DiagrammeR)
 
 #load data
 Cdata<-read.csv('chemicaldata_maunalua.csv')
@@ -150,7 +154,7 @@ ggplot(Cdata, aes(group = Site))+
 # run anova to for Wailupe
 
 #Make tide just high and low instead of H1, H2, L1, and L2
-CData$Tide<-droplevels(Cdata$Tide) #this removes levels that don'e exist anymore (empty spaces for example)
+Cdata$Tide<-droplevels(Cdata$Tide) #this removes levels that don'e exist anymore (empty spaces for example)
 levels(Cdata$Tide)<-c("H","H","L","L") # this makes H1 and H2 both H and same for L1 and L2
 
 # filter out the zones so that it is only diffures, ambient, and transition
@@ -313,3 +317,33 @@ Cdata %>%
                          breaks = c(25,27,29,31,33,35))+
   facet_wrap(~Site)+
   theme_bw()
+
+#SEM######################
+# Test the effect of SGD (salinity) on pH which is mediated by N uptake and production rates. 
+# Hypothesis: High SGD (low salinity/high silicate) increases N uptake of producers, which increases production (delta DIC), which increases pH
+
+SGD_prodFormula<-'
+DIC.diff ~  Silicate
+pH ~ DIC.diff + Silicate
+'
+
+SGD_prodModel <- sem(SGD_prodFormula, data = Cdata, group = 'Zone')
+summary(SGD_prodModel, standardize = T)
+semPaths(SGD_prodModel, "std", edge.label.cex = 1.5,  intercepts =FALSE)
+
+
+## Filter our the Offshore data
+Cdata<-Cdata %>%
+  filter(Zone!='Offshore')%>%
+  droplevels()%>%
+  mutate(Zone1 = as.numeric(Zone)) # apparently sem doesnt like characters
+
+a<- lme(DIC.diff ~ Silicate*Zone1 , random = ~ 1 | Site , data = Cdata)
+b<- lme(pH ~ DIC.diff*Zone1 + Silicate*Zone1, random = ~ 1 | Site, data = Cdata)       
+
+SGD_mod<-psem(
+    a,
+    b
+)
+
+summary(SGD_mod)
