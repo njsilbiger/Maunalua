@@ -263,18 +263,51 @@ ggplot(Cdata, aes(group = Site))+
 
 
 Cdata2<-Cdata %>%
-  filter(TA.diff <300)
+  dplyr::filter(TA.diff < 300, Zone != "Offshore")
 
 ggplot(Cdata2, aes(y = TA.diff, x = pH,group = Zone))+
   geom_point(aes( col = Zone))+
   geom_smooth(method = "lm", aes(y = TA.diff, x = pH, group = Zone, col = Zone))+
   facet_wrap(~Site)
 
-ggplot(Cdata2, aes(x = DIC.diff, y = pH,group = Zone))+
+Cdata2 %>%
+dplyr::filter(Tide == "L")%>%  
+ggplot(aes(x = DIC.diff, y = pH,group = Zone))+
   geom_point(aes( col = Zone))+
-  geom_smooth(method = "lm", aes(x = DIC.diff, y = pH, group = Zone, col = Zone))+
-  facet_wrap(~Site)
+  geom_smooth(method = "lm", lwd = 2, se = FALSE, aes(x = DIC.diff, y = pH, group = Zone, col = Zone))
 
+# delta DIC versus pH
+Cdata2 %>%
+  dplyr::filter(Tide == "L")%>%  
+  ggplot(aes(x = DIC.diff, y = pH))+
+  geom_point()+
+  geom_smooth(method = "lm", lwd = 2) +
+  geom_vline(xintercept = 0, lty = 2, color = "grey")+
+  xlab("Change in DIC from mixing line (Net Ecosystem Production)")+
+  annotate("text", label = "Net photosynthesis", x = 20, y = 8.2, size = 6, hjust = 0)+
+  annotate("text", label = "Net respiration", x = -100, y = 8.2, size = 6, hjust = 0)+
+  ylab(expression(pH[t]))+
+  theme(axis.title=element_text(size=16,face="bold"))+
+  ggsave(filename = 'Output/DIC_pH.png')
+
+# delta DIC versus delta TA
+Cdata2 %>%
+  ggplot(aes(x = DIC.diff, y = TA.diff, group = Tide))+
+  geom_point(aes(size = percent_sgd))+
+  geom_smooth(method = "lm", lwd = 2, aes(x = DIC.diff, y = TA.diff, group = Tide, col = Tide)) +
+  geom_vline(xintercept = 0, lty = 2, color = "grey")+
+  geom_hline(yintercept = 0, lty = 2, color = "grey")+
+  xlab(expression("Change in DIC from mixing line \n(Net Ecosystem Production)"))+
+ # annotate("text", label = "Net photosynthesis", x = 20, y = 150, size = 6, hjust = 0)+
+#  annotate("text", label = "Net respiration", x = -100, y = 150, size = 6, hjust = 0)+
+  ylab(expression('Change in TA from mixing line \n(Net Ecosystem Calcification)'))+
+  labs(size = "% SGD")+
+  theme(axis.title.x = element_text(margin=margin(30,0,0,0)),
+        axis.title=element_text(size=16,face="bold"),
+        strip.text = element_text(size=16),
+        plot.margin = margin(1.5, 1.5, 1.5, 1.5, "cm"))+
+  facet_wrap(~Zone)+
+  ggsave(filename = 'Output/TA_DIC_LH.png')
 
 a<-lm(pH~DIC.diff*Salinity, data = Cdata, subset = Cdata$Site=='W')
 anova(a)
@@ -287,6 +320,17 @@ ggplot(aes(x = DIC.diff, y = pH, col = Salinity, group = Site))+
                          na.value = "grey50", guide = "colourbar", aesthetics = "colour")+
   facet_wrap(~Site)+
   theme_bw()
+
+
+Cdata %>%
+  dplyr::filter(Salinity<33)%>%
+  ggplot(aes(x = Salinity, y = DIC.diff, group = Site))+
+  geom_point(aes(shape = Tide, size = 1))+
+  scale_colour_gradient2(low = "red", high = "blue3", space = "Lab",midpoint = 33,
+                         na.value = "grey50", guide = "colourbar", aesthetics = "colour")+
+  facet_wrap(~Site)+
+  theme_bw()
+
 
 Cdata %>%
   #  filter(Salinity<33)%>%
