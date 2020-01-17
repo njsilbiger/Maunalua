@@ -10,7 +10,7 @@ pHData<-read.csv("LargeScaleMaunalua/TA_pHData.csv")
 ## take the mV calibration files by each date and use them to calculate pH
 pHSlope<-pHcalib %>%
   group_by(date)%>%
-  do(fitpH = lm(lm(mVTris~TTris, data = .)))%>% # linear regression of mV and temp of the tris
+  do(fitpH = lm(mVTris~TTris, data = .))%>% # linear regression of mV and temp of the tris
   tidy(fitpH) %>% # make the output tidy
   select(date, term, estimate) %>%
   pivot_wider(names_from = term, values_from = estimate) %>%# put slope and intercept in their own column

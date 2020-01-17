@@ -10,6 +10,9 @@ library(lavaan)
 library(piecewiseSEM)
 library(semPlot)
 library(DiagrammeR)
+library(nlme)
+library(brms)
+library(tidybayes)
 
 #load data
 Cdata<-read.csv('chemicaldata_maunalua.csv')
@@ -17,7 +20,7 @@ Cdata<-read.csv('chemicaldata_maunalua.csv')
 Cdata<-Cdata[complete.cases(Cdata),]
 
 #calculate rest of carbonate params
-CO2<-carb(flag=8, Cdata$pH, Cdata$TA/1000000, S=Cdata$Salinity, T=Cdata$Temp_in, Patm=1, P=0, Pt=0, Sit=0,
+CO2<-carb(flag=8, Cdata$pH, Cdata$TA/1000000, S=Cdata$Salinity, T=Cdata$Temp_in, Patm=1, P=Cdata$Phosphate/1000000, Pt=0, Sit=0,
               k1k2="x", kf="x", ks="d", pHscale="T", b="u74", gas="potential")
 #TA is divided by 1000 because all calculations are in mol/kg in the seacarb package
 
@@ -48,6 +51,7 @@ W.end.Si<-810
 #hot end point from 05/24/2015
 Hot.Sal<- 35.1961
 Hot.pH<-8.069
+Hot.DIC<-2006.3
 Hot.TA<-2324
 Hot.temp<-24.4490
 Hot.PO<-0.11
@@ -55,10 +59,11 @@ Hot.NN<-0.01
 Hot.Si<-1.17
 
 
-Hot.CO2<-carb(flag=8, Hot.pH, Hot.TA/1000000, S=Hot.Sal, T=Hot.temp, Patm=1, P=0, Pt=0, Sit=0,
-          k1k2="x", kf="x", ks="d", pHscale="T", b="u74", gas="potential")
 
-Hot.CO2[,c("CO2","HCO3","CO3","DIC","ALK")]<-Hot.CO2[,c("CO2","HCO3","CO3","DIC","ALK")]*1000000
+#Hot.CO2<-carb(flag=8, Hot.pH, Hot.TA/1000000, S=Hot.Sal, T=Hot.temp, Patm=1, P=0, Pt=0, Sit=0,
+#          k1k2="x", kf="x", ks="d", pHscale="T", b="u74", gas="potential")
+
+#Hot.CO2[,c("CO2","HCO3","CO3","DIC","ALK")]<-Hot.CO2[,c("CO2","HCO3","CO3","DIC","ALK")]*1000000
 
 #create the regression
 
@@ -67,8 +72,8 @@ Hot.CO2[,c("CO2","HCO3","CO3","DIC","ALK")]<-Hot.CO2[,c("CO2","HCO3","CO3","DIC"
 BP.model<-lm(c(BP.end.TA,Hot.TA)~c(BP.end.Sal,Hot.Sal))
 W.model<-lm(c(W.end.TA,Hot.TA)~c(W.end.Sal,Hot.Sal))
 #DIC
-BP.model.DIC<-lm(c(BP.end.DIC,Hot.CO2$DIC)~c(BP.end.Sal,Hot.Sal))
-W.model.DIC<-lm(c(W.end.DIC,Hot.CO2$DIC)~c(W.end.Sal,Hot.Sal))
+BP.model.DIC<-lm(c(BP.end.DIC,Hot.DIC)~c(BP.end.Sal,Hot.Sal))
+W.model.DIC<-lm(c(W.end.DIC,Hot.DIC)~c(W.end.Sal,Hot.Sal))
 #NN
 BP.model.NN<-lm(c(BP.end.NN,Hot.NN)~c(BP.end.Sal,Hot.Sal))
 W.model.NN<-lm(c(W.end.NN,Hot.NN)~c(W.end.Sal,Hot.Sal))
@@ -157,8 +162,11 @@ ggplot(Cdata, aes(group = Site))+
 Cdata$Tide<-droplevels(Cdata$Tide) #this removes levels that don'e exist anymore (empty spaces for example)
 levels(Cdata$Tide)<-c("H","H","L","L") # this makes H1 and H2 both H and same for L1 and L2
 
+
+
 # filter out the zones so that it is only diffures, ambient, and transition
-Cdata$Zone<-Cdata$Zone %>%
+Cdata<-Cdata %>% 
+  dplyr::filter(Zone != 'Offshore')%>%
   droplevels()
 
 modW<-lmer(TA.diff~DIC.diff*Zone*Tide +(1|Season)+(1|Waypoint), data = Cdata[Cdata$Site=='W',])
@@ -256,18 +264,25 @@ ggsave(filename = 'Output/PlotsbyZone.pdf', plot = AllZone,device = 'pdf', width
 
 
 
-## Look at relationship between feedbacks and salinity versus deltas
+## Look at relationship between feedbacks and salinity or silicate versus deltas
 ggplot(Cdata, aes(group = Site))+
-  geom_point(aes(x = Salinity, y = pH))+
+  geom_point(aes(x = Silicate, y = pH))+
   facet_wrap(~Site)
 
 
 Cdata2<-Cdata %>%
-  dplyr::filter(TA.diff < 300, Zone != "Offshore")
+  dplyr::filter(TA.diff < 300) # remove possible outlier
 
-ggplot(Cdata2, aes(y = TA.diff, x = pH,group = Zone))+
-  geom_point(aes( col = Zone))+
-  geom_smooth(method = "lm", aes(y = TA.diff, x = pH, group = Zone, col = Zone))+
+## delta TA ~ pH
+ggplot(Cdata2, aes(y = TA.diff, x = pH,group = Site))+
+  geom_point()+
+  geom_smooth(method = "lm", aes(y = TA.diff, x = pH, group = Site))+
+  facet_wrap(~Site)
+
+## delta TA ~ aragonite
+ggplot(Cdata2, aes(y = TA.diff, x = Arag,group = Site))+
+  geom_point()+
+  geom_smooth(method = "lm", aes(y = TA.diff, x = Arag, group = Site))+
   facet_wrap(~Site)
 
 Cdata2 %>%
@@ -278,7 +293,7 @@ ggplot(aes(x = DIC.diff, y = pH,group = Zone))+
 
 # delta DIC versus pH
 Cdata2 %>%
-  dplyr::filter(Tide == "L")%>%  
+ # dplyr::filter(Tide == "L")%>%  
   ggplot(aes(x = DIC.diff, y = pH))+
   geom_point()+
   geom_smooth(method = "lm", lwd = 2) +
@@ -288,6 +303,7 @@ Cdata2 %>%
   annotate("text", label = "Net respiration", x = -100, y = 8.2, size = 6, hjust = 0)+
   ylab(expression(pH[t]))+
   theme(axis.title=element_text(size=16,face="bold"))+
+ # facet_wrap(~Zone)+
   ggsave(filename = 'Output/DIC_pH.png')
 
 # delta DIC versus delta TA
@@ -309,13 +325,14 @@ Cdata2 %>%
   facet_wrap(~Zone)+
   ggsave(filename = 'Output/TA_DIC_LH.png')
 
-a<-lm(pH~DIC.diff*Salinity, data = Cdata, subset = Cdata$Site=='W')
+a<-lm(pH~DIC.diff*percent_sgd, data = Cdata, subset = Cdata$Site=='W')
 anova(a)
+summary(a)
 
 Cdata %>%
 #  filter(Salinity<33)%>%
-ggplot(aes(x = DIC.diff, y = pH, col = Salinity, group = Site))+
-  geom_point(aes(shape = Tide, size = 1))+
+ggplot(aes(x = DIC.diff, y = pH, group = Site))+
+  geom_point(aes(shape = Tide, size = percent_sgd))+
   scale_colour_gradient2(low = "red", high = "blue3", space = "Lab",midpoint = 33,
                          na.value = "grey50", guide = "colourbar", aesthetics = "colour")+
   facet_wrap(~Site)+
@@ -345,8 +362,8 @@ Cdata %>%
 #NN difference versus salinity
 Cdata %>%
   #  filter(Salinity<33)%>%
-  ggplot(aes(y = NN.diff, x = Salinity, col = Salinity, group = Site))+
-  geom_point(aes(size = 1))+
+  ggplot(aes(y = NN.diff, x = percent_sgd,  group = Site))+
+  geom_point()+
   scale_colour_gradient2(low = "red", high = "blue3", space = "Lab",midpoint = 33,
                          na.value = "grey50", guide = "colourbar", aesthetics = "colour")+
   facet_wrap(~Site)+
@@ -366,24 +383,40 @@ Cdata %>%
 # Test the effect of SGD (salinity) on pH which is mediated by N uptake and production rates. 
 # Hypothesis: High SGD (low salinity/high silicate) increases N uptake of producers, which increases production (delta DIC), which increases pH
 
+## standardize the data
+Cdata$pH_std<-scale(Cdata$pH,center = TRUE, scale = TRUE)
+Cdata$Si_std<-scale(Cdata$Silicate,center = TRUE, scale = TRUE)
+Cdata$DIC.diff_std<-scale(Cdata$DIC.diff,center = TRUE, scale = TRUE)
+Cdata$SGD_std<-scale(Cdata$percent_sgd,center = TRUE, scale = TRUE)
+Cdata$NN_std<-scale(Cdata$NN,center = TRUE, scale = TRUE)
+
 SGD_prodFormula<-'
-DIC.diff ~  Silicate
-pH ~ DIC.diff + Silicate
+NN_std ~ SGD_std
+DIC.diff_std ~  NN_std + SGD_std
+pH_std ~ DIC.diff_std + SGD_std + NN_std
 '
+#Day
+SGD_prodModel_Day <- sem(SGD_prodFormula, data = Cdata[Cdata$Day_Night=='Day',], group = 'Tide')
+summary(SGD_prodModel_Day, standardize = T)
+semPaths(SGD_prodModel_Day, "std", edge.label.cex = 1.5,  
+         intercepts =FALSE, layout = "spring", residuals = FALSE)
 
-SGD_prodModel <- sem(SGD_prodFormula, data = Cdata, group = 'Zone')
-summary(SGD_prodModel, standardize = T)
-semPaths(SGD_prodModel, "std", edge.label.cex = 1.5,  intercepts =FALSE)
+#Night
+SGD_prodModel_Night <- sem(SGD_prodFormula, data = Cdata[Cdata$Day_Night=='Night',], group = 'Tide')
+summary(SGD_prodModel_Night, standardize = T)
+semPaths(SGD_prodModel_Night, "std", edge.label.cex = 1.5,  
+         intercepts =FALSE, layout = "spring", residuals = FALSE)
 
 
+## try SEM with random effect
 ## Filter our the Offshore data
-Cdata<-Cdata %>%
-  filter(Zone!='Offshore')%>%
-  droplevels()%>%
-  mutate(Zone1 = as.numeric(Zone)) # apparently sem doesnt like characters
+Cdata3<-Cdata %>%
+#  dplyr::filter(Zone!='Offshore')%>%
+#  droplevels()%>%
+  dplyr::mutate(Zone1 = as.numeric(Zone)) # apparently sem doesnt like characters
 
-a<- lme(DIC.diff ~ Silicate*Zone1 , random = ~ 1 | Site , data = Cdata)
-b<- lme(pH ~ DIC.diff*Zone1 + Silicate*Zone1, random = ~ 1 | Site, data = Cdata)       
+a<- lme(DIC.diff ~ Silicate*Zone1 , random = ~ 1 | Site , data = Cdata3)
+b<- lme(pH ~ DIC.diff*Zone1 + Silicate*Zone1, random = ~ 1 | Site, data = Cdata3)       
 
 SGD_mod<-psem(
     a,
@@ -391,3 +424,34 @@ SGD_mod<-psem(
 )
 
 summary(SGD_mod)
+
+### model a bayesian SEM
+pH_mod <- bf(pH ~ DIC.diff + NN + percent_sgd)
+DIC_mod <- bf(DIC.diff ~ NN + percent_sgd)
+NN_mod<-bf(NN ~ percent_sgd)
+
+# full mediation
+pH_mod <- bf(pH ~ DIC.diff)
+DIC_mod <- bf(DIC.diff ~ NN )
+NN_mod<-bf(NN ~ percent_sgd)
+
+k_fit_brms <- brm(pH_mod+
+                    DIC_mod+ 
+                    NN_mod +
+                    set_rescor(FALSE), 
+                  data=Cdata2,
+                  cores=4, chains = 2)
+
+# view the effect sized
+fixef(k_fit_brms)
+
+### let's predict pH with changes in SGD.  Note, non-terminal endogenous variables need to have an NA as their values.
+
+newdata <- data.frame(percent_sgd = 50, DIC.diff=NA, NN = 20)
+
+pH_pred <- fitted(k_fit_brms, newdata=newdata,
+                     resp = "DICdiff", nsamples = 1000, 
+                     summary = FALSE)
+
+median(pH_pred)
+posterior_interval(pH_pred)
