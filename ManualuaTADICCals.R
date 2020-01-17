@@ -329,27 +329,39 @@ a<-lm(pH~DIC.diff*percent_sgd, data = Cdata, subset = Cdata$Site=='W')
 anova(a)
 summary(a)
 
-Cdata %>%
-#  filter(Salinity<33)%>%
-ggplot(aes(x = DIC.diff, y = pH, group = Site))+
-  geom_point(aes(shape = Tide, size = percent_sgd))+
-  scale_colour_gradient2(low = "red", high = "blue3", space = "Lab",midpoint = 33,
-                         na.value = "grey50", guide = "colourbar", aesthetics = "colour")+
-  facet_wrap(~Site)+
-  theme_bw()
+## Delta TA as a function of pH
+
+# individual models by tide
+TA.pH_low<-lm(TA.diff~pH, data = Cdata2, subset = Cdata2$Tide=='L')
+r2TApH.low<-round(rsquared(TA.pH_low)$R.squared,2) # extract the r-squared
+TA.pH_high<-lm(TA.diff~pH, data = Cdata2, subset = Cdata2$Tide=='H')
+r2TApH.high<-round(rsquared(TA.pH_high)$R.squared,2) # extract the r-squared
+
+# predictive power of pH on delta TA decreases (i.e. lower R2) when more SGD is present
+
+# New facet label names for supp variable
+tide.labs <- c(paste("High Tide: R2 =",r2TApH.high), paste("Low Tide: R2 =",r2TApH.low))
+names(tide.labs) <- c("H", "L")
+
+Cdata2 %>%
+  ggplot(aes(x = pH, y = TA.diff))+
+  geom_point(aes(size = percent_sgd, color  = Day_Night))+
+  geom_smooth(method = "lm", lwd = 2, aes(x = pH, y = TA.diff)) +
+  geom_hline(yintercept = 0, lty = 2, color = "grey")+
+  xlab(expression(pH[t]))+
+  ylab(expression('Change in TA from mixing line \n(Net Ecosystem Calcification)'))+
+  labs(size = "% SGD", color = "Day or Night")+
+  theme(axis.title.x = element_text(margin=margin(30,0,0,0)),
+        axis.title=element_text(size=16,face="bold"),
+        strip.text = element_text(size=16),
+        plot.margin = margin(1.5, 1.5, 1.5, 1.5, "cm"))+
+  facet_wrap(~Tide, labeller = labeller(Tide = tide.labs))+
+  ggsave(filename = 'Output/TA_pH.png')
 
 
-Cdata %>%
-  dplyr::filter(Salinity<33)%>%
-  ggplot(aes(x = Salinity, y = DIC.diff, group = Site))+
-  geom_point(aes(shape = Tide, size = 1))+
-  scale_colour_gradient2(low = "red", high = "blue3", space = "Lab",midpoint = 33,
-                         na.value = "grey50", guide = "colourbar", aesthetics = "colour")+
-  facet_wrap(~Site)+
-  theme_bw()
 
-
-Cdata %>%
+# low salinities
+Cdata2 %>%
   #  filter(Salinity<33)%>%
   ggplot(aes(x = pH, y = TA.diff/2, col = Salinity, group = Site))+
   geom_point(aes(shape = Tide, size = 1))+
