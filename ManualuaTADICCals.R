@@ -469,6 +469,9 @@ k_fit_brms <- brm(pH_mod+
 # view the effect sized
 fixef(k_fit_brms)
 
+## all of the marginal effects plots
+plot(marginal_effects(k_fit_brms), points = TRUE)
+
 ### let's predict pH with changes in SGD.  Note, non-terminal endogenous variables need to have an NA as their values.
 
 newdata <- data.frame(percent_sgd = 50, DIC.diff=NA, NN = 20)
