@@ -13,6 +13,8 @@ library(DiagrammeR)
 library(nlme)
 library(brms)
 library(tidybayes)
+library(tidyverse)
+library(ggthemes)
 
 #load data
 Cdata<-read.csv('chemicaldata_maunalua.csv')
@@ -401,23 +403,29 @@ Cdata$Si_std<-scale(Cdata$Silicate,center = TRUE, scale = TRUE)
 Cdata$DIC.diff_std<-scale(Cdata$DIC.diff,center = TRUE, scale = TRUE)
 Cdata$SGD_std<-scale(Cdata$percent_sgd,center = TRUE, scale = TRUE)
 Cdata$NN_std<-scale(Cdata$NN,center = TRUE, scale = TRUE)
+Cdata$NH4_std<-scale(Cdata$Ammonia,center = TRUE, scale = TRUE)
+Cdata$PO_std<-scale(Cdata$Phosphate,center = TRUE, scale = TRUE)
 
 SGD_prodFormula<-'
+NH4_std ~ SGD_std
+PO_std ~ SGD_std
 NN_std ~ SGD_std
-DIC.diff_std ~  NN_std + SGD_std
-pH_std ~ DIC.diff_std + SGD_std + NN_std
+DIC.diff_std ~  NN_std + PO_std + NH4_std
+pH_std ~ DIC.diff_std + SGD_std
 '
 #Day
 SGD_prodModel_Day <- sem(SGD_prodFormula, data = Cdata[Cdata$Day_Night=='Day',], group = 'Tide')
 summary(SGD_prodModel_Day, standardize = T)
 semPaths(SGD_prodModel_Day, "std", edge.label.cex = 1.5,  
-         intercepts =FALSE, layout = "spring", residuals = FALSE)
+         intercepts =FALSE, layout = "tree", style = "lisrel",
+         residuals = FALSE)
 
 #Night
 SGD_prodModel_Night <- sem(SGD_prodFormula, data = Cdata[Cdata$Day_Night=='Night',], group = 'Tide')
 summary(SGD_prodModel_Night, standardize = T)
 semPaths(SGD_prodModel_Night, "std", edge.label.cex = 1.5,  
-         intercepts =FALSE, layout = "spring", residuals = FALSE)
+         intercepts =FALSE, layout = "tree", style = "lisrel",
+         residuals = FALSE)
 
 
 ## try SEM with random effect
@@ -438,20 +446,24 @@ SGD_mod<-psem(
 summary(SGD_mod)
 
 ### model a bayesian SEM
-pH_mod <- bf(pH ~ DIC.diff + NN + percent_sgd)
-DIC_mod <- bf(DIC.diff ~ NN + percent_sgd)
-NN_mod<-bf(NN ~ percent_sgd)
+pH_mod <- bf(pH_std ~ Tide*(DIC.diff_std + SGD_std))
+DIC_mod <- bf(DIC.diff_std ~ Tide*(NN_std + PO_std + NH4_std))
+NN_mod<-bf(NN_std ~ SGD_std)
+NH4_mod<-bf(NH4_std ~ SGD_std)
+PO_mod<-bf(PO_std ~ SGD_std)
 
 # full mediation
-pH_mod <- bf(pH ~ DIC.diff)
-DIC_mod <- bf(DIC.diff ~ NN )
-NN_mod<-bf(NN ~ percent_sgd)
+#pH_mod <- bf(pH ~ DIC.diff)
+#DIC_mod <- bf(DIC.diff ~ NN )
+#NN_mod<-bf(NN ~ percent_sgd)
 
 k_fit_brms <- brm(pH_mod+
                     DIC_mod+ 
                     NN_mod +
+                    NH4_mod+
+                    PO_mod+
                     set_rescor(FALSE), 
-                  data=Cdata2,
+                  data=Cdata,
                   cores=4, chains = 2)
 
 # view the effect sized
@@ -467,3 +479,30 @@ pH_pred <- fitted(k_fit_brms, newdata=newdata,
 
 median(pH_pred)
 posterior_interval(pH_pred)
+
+## calculating the effect size from the interaction terms
+## not sure if this is correct (Read section 7.2 https://bookdown.org/ajkurz/Statistical_Rethinking_recoded/interactions.html)
+post %>%
+  transmute(gamma_Low    = b_pHstd_DIC.diff_std  + `b_pHstd_TideL:DIC.diff_std`,
+            gamma_High = b_pHstd_DIC.diff_std ) %>%
+  gather(key, value) %>%
+  group_by(key) %>%
+  summarise(mean = mean(value))
+
+post %>%
+  transmute(gamma_Low    = b_pHstd_DIC.diff_std  + `b_pHstd_TideL:DIC.diff_std`,
+            gamma_High = b_pHstd_DIC.diff_std ) %>%
+  gather(key, value) %>%
+  group_by(key) %>%
+  
+  ggplot(aes(x = value, group = key, color = key, fill = key)) +
+  geom_density(alpha = 1/4) +
+  scale_colour_pander() +
+  scale_fill_pander() +
+  scale_x_continuous('Standardized effect Size', expand = c(0, 0)) +
+  scale_y_continuous(NULL, breaks = NULL) +
+  ggtitle("pH ~ DIC slopes",
+          subtitle = "Blue = Low Tide, Green = High Tide") +
+  theme_pander() + 
+  theme(text = element_text(family = "Times"),
+        legend.position = "none")
