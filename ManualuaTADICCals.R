@@ -405,6 +405,7 @@ Cdata$SGD_std<-scale(Cdata$percent_sgd,center = TRUE, scale = TRUE)
 Cdata$NN_std<-scale(Cdata$NN,center = TRUE, scale = TRUE)
 Cdata$NH4_std<-scale(Cdata$Ammonia,center = TRUE, scale = TRUE)
 Cdata$PO_std<-scale(Cdata$Phosphate,center = TRUE, scale = TRUE)
+Cdata$TA.diff_std<-scale(Cdata$TA.diff,center = TRUE, scale = TRUE)
 
 SGD_prodFormula<-'
 NH4_std ~ SGD_std
@@ -412,6 +413,7 @@ PO_std ~ SGD_std
 NN_std ~ SGD_std
 DIC.diff_std ~  NN_std + PO_std + NH4_std
 pH_std ~ DIC.diff_std + SGD_std
+TA.diff_std~pH_std
 '
 #Day
 SGD_prodModel_Day <- sem(SGD_prodFormula, data = Cdata[Cdata$Day_Night=='Day',], group = 'Tide')
@@ -445,43 +447,110 @@ SGD_mod<-psem(
 
 summary(SGD_mod)
 
-### model a bayesian SEM
-pH_mod <- bf(pH_std ~ Tide*(DIC.diff_std + SGD_std))
-DIC_mod <- bf(DIC.diff_std ~ Tide*(NN_std + PO_std + NH4_std))
-NN_mod<-bf(NN_std ~ SGD_std)
-NH4_mod<-bf(NH4_std ~ SGD_std)
-PO_mod<-bf(PO_std ~ SGD_std)
+### model a bayesian SEM (individual one for each site since the geo chemistry of the SGD is different)
+TA_mod<-bf(TA.diff_std ~ pH_std) # NEC ~ pH, which can change by day/night
+pH_mod <- bf(pH_std ~ DIC.diff_std + SGD_std) # pH ~ NEP + SGD
+DIC_mod <- bf(DIC.diff_std ~ Day_Night*(NN_std + PO_std)) # DIC ~ nutrients, which can change by day/night (i.e. high nutrients could lead to high P during the day and high R at night what have opposite signs)
+NN_mod<-bf(NN_std ~ Site*SGD_std) # NN ~ SGD which can change by site
+#NH4_mod<-bf(NH4_std ~ Site*SGD_std) # NH4 ~ SGD which can change by site
+PO_mod<-bf(PO_std ~ Site*SGD_std) # PO ~ SGD which can change by site
 
 # full mediation
 #pH_mod <- bf(pH ~ DIC.diff)
 #DIC_mod <- bf(DIC.diff ~ NN )
 #NN_mod<-bf(NN ~ percent_sgd)
 
-k_fit_brms <- brm(pH_mod+
+k_fit_brms <- brm(TA_mod+
+                    pH_mod+
                     DIC_mod+ 
-                    NN_mod +
-                    NH4_mod+
-                    PO_mod+
-                    set_rescor(FALSE), 
-                  data=Cdata,
-                  cores=4, chains = 2)
+                     NN_mod +
+                     #NH4_mod+
+                     PO_mod+
+                     set_rescor(FALSE), 
+                   data=Cdata,
+                   cores=4, chains = 2)
 
 # view the effect sized
 fixef(k_fit_brms)
 
 ## all of the marginal effects plots
-plot(marginal_effects(k_fit_brms), points = TRUE)
+plot(conditional_effects(k_fit_brms), points = TRUE)
 
-### let's predict pH with changes in SGD.  Note, non-terminal endogenous variables need to have an NA as their values.
+### let's predict NN with changes in SGD to 50% at Wailupe during the day. 
+#Note, non-terminal endogenous variables need to have an NA as their values.
 
-newdata <- data.frame(percent_sgd = 50, DIC.diff=NA, NN = 20)
+#standardize 50% SGD based on prior standardized data
+SGD.value<-50
 
-pH_pred <- fitted(k_fit_brms, newdata=newdata,
-                     resp = "DICdiff", nsamples = 1000, 
+## Make everything below a function and step through predictions of each variable across a range of SGD values for each site, and day and night
+## This will tell us 
+SGD.scale<-(SGD.value-attributes(Cdata$SGD_std)$`scaled:center`)/attributes(Cdata$SGD_std)$`scaled:scale`
+
+newdata <- data.frame(NN_std = NA, Site = "W",SGD_std = SGD.scale, Day_Night=='Day')
+
+## NN
+NN_pred <- fitted(k_fit_brms, newdata=newdata,
+                     resp = "NNstd", nsamples = 100, 
                      summary = FALSE)
 
-median(pH_pred)
+median(NN_pred)
+posterior_interval(NN_pred)
+
+#PO
+newdata.po <- data.frame(PO_std = NA, Site = "W",SGD_std = 50)
+
+## NN
+PO_pred <- fitted(k_fit_brms, newdata=newdata.po,
+                  resp = "POstd", nsamples = 100, 
+                  summary = FALSE)
+
+median(PO_pred)
+posterior_interval(PO_pred)
+
+# now let's go to the next level, delta DIC (which is a function of NN and PO)
+newdata2 <- expand.grid(SGD_std = newdata$SGD_std, NN_std = as.vector(NN_pred), PO_std =as.vector(PO_pred))
+
+DIC_pred <- fitted(k_fit_brms, newdata=newdata2,
+                    resp = "DICdiffstd", nsamples = 100, 
+                    summary = FALSE)
+
+#to minimize excess uncertainty
+DIC_pred <- as.matrix(diag(DIC_pred))
+
+#visualize
+plot(density(as.vector(DIC_pred)))
+median(as.vector(DIC_pred))
+posterior_interval(DIC_pred)
+
+# Now to the next level, for pH
+newdata.pH <- expand.grid(SGD_std = newdata$SGD_std, 
+                          NN_std = as.vector(NN_pred), PO_std =as.vector(PO_pred),
+                          DIC.diff_std = as.vector(DIC_pred))
+
+pH_pred <- fitted(k_fit_brms, newdata=newdata.pH,
+                   resp = "pHstd", nsamples = 100, 
+                   summary = FALSE)
+#visualize
+pH_pred <- as.matrix(diag(pH_pred))
+plot(density(as.vector(pH_pred)))
+median(as.vector(pH_pred))
 posterior_interval(pH_pred)
+
+
+## Last level, NEC
+newdata.TA <- expand.grid(SGD_std = newdata$SGD_std, 
+                          NN_std = as.vector(NN_pred), PO_std =as.vector(PO_pred),
+                          DIC.diff_std = as.vector(DIC_pred), pH_std = as.vector(pH_pred))
+
+TA_pred <- fitted(k_fit_brms, newdata=newdata.TA,
+                  resp = "TAdiffstd", nsamples = 100, 
+                  summary = FALSE)
+#visualize
+TA_pred <- as.matrix(diag(TA_pred))
+plot(density(as.vector(TA_pred)))
+median(as.vector(TA_pred))
+posterior_interval(TA_pred)
+
 
 ## calculating the effect size from the interaction terms
 ## not sure if this is correct (Read section 7.2 https://bookdown.org/ajkurz/Statistical_Rethinking_recoded/interactions.html)
