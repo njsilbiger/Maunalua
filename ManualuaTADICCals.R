@@ -8,13 +8,14 @@ library(effects)
 library(cowplot)
 library(lavaan)
 library(piecewiseSEM)
-library(semPlot)
+#library(semPlot)
 library(DiagrammeR)
 library(nlme)
 library(brms)
 library(tidybayes)
 library(tidyverse)
 library(ggthemes)
+library(patchwork)
 
 #load data
 Cdata<-read.csv('chemicaldata_maunalua.csv')
@@ -397,14 +398,19 @@ Cdata %>%
 # Test the effect of SGD (salinity) on pH which is mediated by N uptake and production rates. 
 # Hypothesis: High SGD (low salinity/high silicate) increases N uptake of producers, which increases production (delta DIC), which increases pH
 
+### Need to log transform the NN, PO, and SGD data first because it is highly left scewed
+Cdata$log_NN<-log(Cdata$NN)
+Cdata$log_PO<-log(Cdata$Phosphate)
+Cdata$log_SGD<-log(Cdata$percent_sgd)
+
 ## standardize the data
 Cdata$pH_std<-scale(Cdata$pH,center = TRUE, scale = TRUE)
 Cdata$Si_std<-scale(Cdata$Silicate,center = TRUE, scale = TRUE)
 Cdata$DIC.diff_std<-scale(Cdata$DIC.diff,center = TRUE, scale = TRUE)
-Cdata$SGD_std<-scale(Cdata$percent_sgd,center = TRUE, scale = TRUE)
-Cdata$NN_std<-scale(Cdata$NN,center = TRUE, scale = TRUE)
+Cdata$SGD_std<-scale(Cdata$log_SGD,center = TRUE, scale = TRUE)
+Cdata$NN_std<-scale(Cdata$log_NN,center = TRUE, scale = TRUE)
 Cdata$NH4_std<-scale(Cdata$Ammonia,center = TRUE, scale = TRUE)
-Cdata$PO_std<-scale(Cdata$Phosphate,center = TRUE, scale = TRUE)
+Cdata$PO_std<-scale(Cdata$log_PO,center = TRUE, scale = TRUE)
 Cdata$TA.diff_std<-scale(Cdata$TA.diff,center = TRUE, scale = TRUE)
 
 SGD_prodFormula<-'
@@ -418,16 +424,16 @@ TA.diff_std~pH_std
 #Day
 SGD_prodModel_Day <- sem(SGD_prodFormula, data = Cdata[Cdata$Day_Night=='Day',], group = 'Tide')
 summary(SGD_prodModel_Day, standardize = T)
-semPaths(SGD_prodModel_Day, "std", edge.label.cex = 1.5,  
-         intercepts =FALSE, layout = "tree", style = "lisrel",
-         residuals = FALSE)
+#semPaths(SGD_prodModel_Day, "std", edge.label.cex = 1.5,  
+ #        intercepts =FALSE, layout = "tree", style = "lisrel",
+  #       residuals = FALSE)
 
 #Night
 SGD_prodModel_Night <- sem(SGD_prodFormula, data = Cdata[Cdata$Day_Night=='Night',], group = 'Tide')
 summary(SGD_prodModel_Night, standardize = T)
-semPaths(SGD_prodModel_Night, "std", edge.label.cex = 1.5,  
-         intercepts =FALSE, layout = "tree", style = "lisrel",
-         residuals = FALSE)
+#semPaths(SGD_prodModel_Night, "std", edge.label.cex = 1.5,  
+ #        intercepts =FALSE, layout = "tree", style = "lisrel",
+  #       residuals = FALSE)
 
 
 ## try SEM with random effect
@@ -447,18 +453,20 @@ SGD_mod<-psem(
 
 summary(SGD_mod)
 
+
 ### model a bayesian SEM (individual one for each site since the geo chemistry of the SGD is different)
 TA_mod<-bf(TA.diff_std ~ pH_std) # NEC ~ pH, which can change by day/night
 pH_mod <- bf(pH_std ~ DIC.diff_std + SGD_std) # pH ~ NEP + SGD
-DIC_mod <- bf(DIC.diff_std ~ Day_Night*(NN_std + PO_std)) # DIC ~ nutrients, which can change by day/night (i.e. high nutrients could lead to high P during the day and high R at night what have opposite signs)
-NN_mod<-bf(NN_std ~ Site*SGD_std) # NN ~ SGD which can change by site
+DIC_mod <- bf(DIC.diff_std ~ Day_Night*(poly(NN_std,2) + poly(PO_std,2))) # DIC ~ nutrients, which can change by day/night (i.e. high nutrients could lead to high P during the day and high R at night what have opposite signs)
+#NN_mod<-bf(NN_std ~ Site*SGD_std) # NN ~ SGD which can change by site
 #NH4_mod<-bf(NH4_std ~ Site*SGD_std) # NH4 ~ SGD which can change by site
-PO_mod<-bf(PO_std ~ Site*SGD_std) # PO ~ SGD which can change by site
+#PO_mod<-bf(PO_std ~ Site*SGD_std) # PO ~ SGD which can change by site
 
-# full mediation
-#pH_mod <- bf(pH ~ DIC.diff)
-#DIC_mod <- bf(DIC.diff ~ NN )
-#NN_mod<-bf(NN ~ percent_sgd)
+# run one site at a time because they have different biogeochem in the SGD
+NN_mod<-bf(NN_std ~ SGD_std) # NN ~ SGD which can change by site
+#NH4_mod<-bf(NH4_std ~ Site*SGD_std) # NH4 ~ SGD which can change by site
+PO_mod<-bf(PO_std ~ SGD_std) # PO ~ SGD which can change by site
+
 
 k_fit_brms <- brm(TA_mod+
                     pH_mod+
@@ -467,60 +475,210 @@ k_fit_brms <- brm(TA_mod+
                      #NH4_mod+
                      PO_mod+
                      set_rescor(FALSE), 
-                   data=Cdata,
+                   data=Cdata[Cdata$Site=='BP',],
                    cores=4, chains = 2)
 
 # view the effect sized
 fixef(k_fit_brms)
 
+#check it
+#plot(k_fit_brms)
+
+p1<-pp_check(k_fit_brms, resp="NNstd") +
+  scale_color_manual(values=c("red", "black"))+
+  ggtitle("NN")
+
+p2<-pp_check(k_fit_brms, resp="POstd") +
+  scale_color_manual(values=c("red", "black"))+
+  ggtitle("PO")
+
+p3<-pp_check(k_fit_brms, resp="pHstd") +
+  scale_color_manual(values=c("red", "black"))+
+  ggtitle("pH")
+
+p4<-pp_check(k_fit_brms, resp="DICdiffstd") +
+  scale_color_manual(values=c("red", "black"))+
+  ggtitle("DIC")
+
+p5<-pp_check(k_fit_brms, resp="TAdiffstd") +
+  scale_color_manual(values=c("red", "black"))+
+  ggtitle("TA")
+
+# view everything together using patchwork
+p1+p2+p3+p4+p5+plot_layout(guides = "collect")
+
 ## all of the marginal effects plots
-plot(conditional_effects(k_fit_brms), points = TRUE)
+#plot(conditional_effects(k_fit_brms), points = TRUE)
 
 ### let's predict NN with changes in SGD to 50% at Wailupe during the day. 
 #Note, non-terminal endogenous variables need to have an NA as their values.
 
 #standardize 50% SGD based on prior standardized data
-SGD.value<-50
+SGD.value<-log(50)
 
 ## Make everything below a function and step through predictions of each variable across a range of SGD values for each site, and day and night
-## This will tell us 
+
+#pred_function<-function(SGD.value,DN='Day'){
+
 SGD.scale<-(SGD.value-attributes(Cdata$SGD_std)$`scaled:center`)/attributes(Cdata$SGD_std)$`scaled:scale`
 
-newdata <- data.frame(NN_std = NA, Site = "W",SGD_std = SGD.scale, Day_Night=='Day')
+newdata <- data.frame(NN_std = NA, SGD_std = SGD.scale, Day_Night=DN)
 
 ## NN
 NN_pred <- fitted(k_fit_brms, newdata=newdata,
-                     resp = "NNstd", nsamples = 100, 
+                     resp = "NNstd", nsamples = 1000, 
                      summary = FALSE)
 
-median(NN_pred)
-posterior_interval(NN_pred)
+#median(NN_pred)
+#posterior_interval(NN_pred)
 
 #PO
-newdata.po <- data.frame(PO_std = NA, Site = "W",SGD_std = 50)
+newdata.po <- data.frame(PO_std = NA, SGD_std = SGD.scale)
 
 ## NN
 PO_pred <- fitted(k_fit_brms, newdata=newdata.po,
-                  resp = "POstd", nsamples = 100, 
+                  resp = "POstd", nsamples = 1000, 
                   summary = FALSE)
 
-median(PO_pred)
-posterior_interval(PO_pred)
+
+#median(PO_pred)
+#posterior_interval(PO_pred)
+
+# N and PO predictions
+ggplot(data = as.data.frame(PO_pred), aes(x=PO_pred)) + 
+  geom_density(fill="blue", alpha=0.3) +
+  theme_bw(base_size=17)+
+  geom_density(data = as.data.frame(NN_pred),aes(x = NN_pred), fill = "red", alpha = 0.3)+
+  labs(x="Nutrient predictions",
+       y="Density") 
+
 
 # now let's go to the next level, delta DIC (which is a function of NN and PO)
-newdata2 <- expand.grid(SGD_std = newdata$SGD_std, NN_std = as.vector(NN_pred), PO_std =as.vector(PO_pred))
+newdata2 <- expand.grid(SGD_std = newdata$SGD_std, NN_std = as.vector(NN_pred), 
+                        PO_std =as.vector(PO_pred), Day_Night=DN)
 
-DIC_pred <- fitted(k_fit_brms, newdata=newdata2,
-                    resp = "DICdiffstd", nsamples = 100, 
+# DIC_pred <- fitted(k_fit_brms, newdata=newdata2,
+#                     resp = "DICdiffstd", nsamples = 1000, 
+#                     summary = FALSE)
+
+#now show prediction
+DIC_pred <- predict(k_fit_brms, newdata=newdata2[1000:2000,],
+                    resp = "DICdiffstd", nsamples = 1000, 
                     summary = FALSE)
-
 #to minimize excess uncertainty
 DIC_pred <- as.matrix(diag(DIC_pred))
 
+
+newdata_curve = data.frame(SGD_std = c(.1,4))
+
+#fitted
+NN_pred_curve <- fitted(k_fit_brms, newdata=newdata_curve,
+                           resp = "NNstd", nsamples = 1000, 
+                           summary = FALSE)
+PO_pred_curve <- fitted(k_fit_brms, newdata=newdata_curve,
+                        resp = "POstd", nsamples = 1000, 
+                        summary = FALSE)
+
+#with error
+NN_pred_error_curve <- predict(k_fit_brms, newdata=newdata_curve,
+                                  resp = "NNstd", nsamples = 1000, 
+                                  summary = FALSE)
+
+#with error
+PO_pred_error_curve <- predict(k_fit_brms, newdata=newdata_curve,
+                               resp = "POstd", nsamples = 1000, 
+                               summary = FALSE)
+
+plotdata <- data.frame(SGD_start=.1,
+                       SGD_end = 4,
+                       fit_start = NN_pred_curve[,1],
+                       fit_end = NN_pred_curve[,2],
+                       pred_start = NN_pred_error_curve[,1],
+                       pred_end = NN_pred_error_curve[,2],
+                       fit_startPO = PO_pred_curve[,1],
+                       fit_endPO = PO_pred_curve[,2],
+                       pred_startPO = PO_pred_error_curve[,1],
+                       pred_endPO = PO_pred_error_curve[,2]
+)
+
+plotdata_median <- data.frame(SGD_start=.1,
+                              SGD_end = 4,
+                              pred_start = median(NN_pred_curve[,1]),
+                              pred_end = median(NN_pred_curve[,2]),
+                              pred_startPO = median(PO_pred_curve[,1]),
+                              pred_endPO = median(PO_pred_curve[,2]))
+
+## figure out how to properly back transform the data
+NNp1<-ggplot(plotdata, mapping=aes(x=SGD_start, xend = SGD_end,
+                             y = pred_start, yend = pred_end) )+
+  geom_segment(color="black",
+               alpha = 0.1) +
+  geom_segment(mapping=aes(y = fit_start, yend = fit_end), 
+               color="lightblue",
+               alpha = 0.1) +
+  geom_segment(data = plotdata_median, color="red", lwd=1.5) +
+  theme_bw(base_size=17) +
+  xlab("SGD") + ylab("NN")
+
+POp1<-ggplot(plotdata, mapping=aes(x=SGD_start, xend = SGD_end,
+                                   y = pred_startPO, yend = pred_endPO)) +
+  geom_segment(color="black",
+               alpha = 0.1) +
+  geom_segment(mapping=aes(y = fit_startPO, yend = fit_endPO), 
+               color="lightblue",
+               alpha = 0.1) +
+  geom_segment(data = plotdata_median, color="red", lwd=1.5) +
+  theme_bw(base_size=17) +
+  xlab("SGD") + ylab("PO")
+
+NNp1+POp1
+
+#prediction of second variable
+newdata2 <- data.frame(SGD = c(rep(.1, nrow(NN_pred_curve)),
+                                   rep(4, nrow(NN_pred_curve))),
+                       NN_std = c(NN_pred_curve[,1], NN_pred_curve[,2]),
+                       PO_std = c(PO_pred_curve[,1], PO_pred_curve[,2]),
+                       Day_Night = DN)
+
+newdata2_error <- data.frame(SGD = c(rep(.1, nrow(NN_pred_error_curve)),
+                                         rep(4, nrow(NN_pred_error_curve))),
+                             NN_std = c(NN_pred_error_curve[,1], NN_pred_error_curve[,2]),
+                             PO_std = c(PO_pred_error_curve[,1], PO_pred_error_curve[,2]),        
+                             Day_Night = DN)
+
+DIC_pred <- fitted(k_fit_brms, newdata=newdata2,
+                    resp = "DICdiffstd", nsamples = 1000, 
+                    summary = FALSE)
+DIC_pred_error <- fitted(k_fit_brms, newdata=newdata2_error,
+                          resp = "DICdiffstd", nsamples = 1000, 
+                          summary = FALSE)
+#to minimize excess uncertainty
+#by remember, there are two predictor values!
+DIC_pred <- c(as.matrix(diag(DIC_pred)), as.matrix(diag(DIC_pred[,1001:2000])))
+DIC_pred_error <- c(as.matrix(diag(DIC_pred_error)), as.matrix(diag(DIC_pred_error[,1001:2000])))
+
+#make data frames of predictions using 2 firesev values
+#we use draws to show separate draws of parameters from posterior
+plot_DIC <- cbind(newdata2, data.frame(DICdiffstd = DIC_pred, draws = c(1:1000, 1:1000)))
+plot_error<- cbind(newdata2, data.frame(DICdiffstd = DIC_pred_error, draws = c(1:1000, 1:1000)))
+plot_median <- data.frame(cbind(SGD = c(.1,4), 
+                                draws = 1,
+                                DICdiffstd = c(median(DIC_pred[1:1000]), median(DIC_pred[1001:2000]))))
+
+#plot it!
+ggplot(plot_error, aes(x = SGD, y = DICdiffstd, group = draws)) +
+  geom_line(alpha = 0.1, color = "black") +
+  geom_line(data = plot_DIC, color = "lightblue", alpha = 0.1) +
+  geom_line(data = plot_median, color = "red", size = 1.5) +
+  theme_bw(base_size=17) +
+  xlab("SGD") + ylab("DIC")
+
+######-------------STOPPED HERE
+
 #visualize
-plot(density(as.vector(DIC_pred)))
-median(as.vector(DIC_pred))
-posterior_interval(DIC_pred)
+# plot(density(as.vector(DIC_pred)))
+# median(as.vector(DIC_pred))
+# posterior_interval(DIC_pred)
 
 # Now to the next level, for pH
 newdata.pH <- expand.grid(SGD_std = newdata$SGD_std, 
@@ -532,9 +690,9 @@ pH_pred <- fitted(k_fit_brms, newdata=newdata.pH,
                    summary = FALSE)
 #visualize
 pH_pred <- as.matrix(diag(pH_pred))
-plot(density(as.vector(pH_pred)))
-median(as.vector(pH_pred))
-posterior_interval(pH_pred)
+# plot(density(as.vector(pH_pred)))
+# median(as.vector(pH_pred))
+# posterior_interval(pH_pred)
 
 
 ## Last level, NEC
@@ -542,15 +700,47 @@ newdata.TA <- expand.grid(SGD_std = newdata$SGD_std,
                           NN_std = as.vector(NN_pred), PO_std =as.vector(PO_pred),
                           DIC.diff_std = as.vector(DIC_pred), pH_std = as.vector(pH_pred))
 
-TA_pred <- fitted(k_fit_brms, newdata=newdata.TA,
+# randomly select 1000 rows, because otherwise it is literally 1 billion numbers and takes super long
+tarows<-round(runif(n = 1000, min = 1, max = nrow(newdata.TA)))
+
+TA_pred <- fitted(k_fit_brms, newdata=newdata.TA[tarows,],
                   resp = "TAdiffstd", nsamples = 100, 
                   summary = FALSE)
 #visualize
 TA_pred <- as.matrix(diag(TA_pred))
-plot(density(as.vector(TA_pred)))
-median(as.vector(TA_pred))
-posterior_interval(TA_pred)
+# plot(density(as.vector(TA_pred)))
+# median(as.vector(TA_pred))
+# posterior_interval(TA_pred)
 
+
+## calculate unscaled values
+TA<-attributes(Cdata$TA.diff_std)$`scaled:center`+median(as.vector(TA_pred))*attributes(Cdata$TA.diff_std)$`scaled:scale`
+pH<-attributes(Cdata$pH_std)$`scaled:center`+median(as.vector(pH_pred))*attributes(Cdata$pH_std)$`scaled:scale`
+DIC<-attributes(Cdata$DIC.diff_std)$`scaled:center`+median(as.vector(DIC_pred))*attributes(Cdata$DIC.diff_std)$`scaled:scale`
+NN<-exp(attributes(Cdata$NN_std)$`scaled:center`+median(as.vector(NN_pred))*attributes(Cdata$NN_std)$`scaled:scale`)
+PO<-exp(attributes(Cdata$PO_std)$`scaled:center`+median(as.vector(PO_pred))*attributes(Cdata$PO_std)$`scaled:scale`)
+# and the predicted intervals
+TA_pred_orig<-attributes(Cdata$TA.diff_std)$`scaled:center`+posterior_interval(TA_pred)*attributes(Cdata$TA.diff_std)$`scaled:scale`
+pH_pred_orig<-attributes(Cdata$pH_std)$`scaled:center`+posterior_interval(pH_pred)*attributes(Cdata$pH_std)$`scaled:scale`
+DIC_pred_orig<-attributes(Cdata$DIC.diff_std)$`scaled:center`+posterior_interval(DIC_pred)*attributes(Cdata$DIC.diff_std)$`scaled:scale`
+NN_pred_orig<-exp(attributes(Cdata$NN_std)$`scaled:center`+posterior_interval(NN_pred)*attributes(Cdata$NN_std)$`scaled:scale`)
+PO_pred_orig<-exp(attributes(Cdata$PO_std)$`scaled:center`+posterior_interval(PO_pred)*attributes(Cdata$PO_std)$`scaled:scale`)
+
+# make vectors in long format with all the parameters
+arg_name<-c("TA","pH","DIC","NN", "PO")
+median_orig<-c(TA,pH,DIC,NN,PO)
+upper95_orig<-c(TA_pred_orig[2], pH_pred_orig[2], DIC_pred_orig[2], NN_pred_orig[2], PO_pred_orig[2])
+lower5_orig<-c(TA_pred_orig[1], pH_pred_orig[1], DIC_pred_orig[1], NN_pred_orig[1], PO_pred_orig[1])
+median_scaled<-c(median(as.vector(TA_pred)), median(as.vector(pH_pred)), median(as.vector(DIC_pred)), median(as.vector(NN_pred)), median(as.vector(PO_pred)))
+upper95_scaled<-c(posterior_interval(TA_pred)[2],posterior_interval(pH_pred)[2],posterior_interval(DIC_pred)[2], posterior_interval(NN_pred)[2], posterior_interval(PO_pred)[2])
+lower5_scaled<-c(posterior_interval(TA_pred)[1],posterior_interval(pH_pred)[1],posterior_interval(DIC_pred)[1], posterior_interval(NN_pred)[1], posterior_interval(PO_pred)[1])
+
+# put everything in a tibble
+pred_values<-tibble(arg_name, median_orig, upper95_orig, lower5_orig, median_scaled, upper95_scaled, lower5_scaled, SGD_precent = exp(SGD.value))
+return(pred_values)
+#}
+
+pred_function(SGD.value = 30, DN = 'Day')
 
 ## calculating the effect size from the interaction terms
 ## not sure if this is correct (Read section 7.2 https://bookdown.org/ajkurz/Statistical_Rethinking_recoded/interactions.html)
