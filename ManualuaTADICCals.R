@@ -643,8 +643,9 @@ Night_DAG<-DAGdata %>%
   theme(plot.title = element_text(hjust = 0.5))
 
 Day_DAG +Night_DAG+plot_annotation(title = 'Paths for Black Point', 
-                                   tag_levels = "A",
-                                   subtitle = "Line thickness is standardized effect size and color represents <b style='color:#2166AC'>positive</b> and <b style='color:#B2182B'>negative</b> values")+
-  ggsave("Output/DAGplots.png", width = 12, height = 6)
+                                   tag_levels = "A"
+                               #    subtitle = "Line thickness is standardized effect size and color represents <b style='color:#2166AC'>positive</b> and <b style='color:#B2182B'>negative</b> values"
+                               )+
+  ggsave("Output/DAGplots.png", width = 12, height = 8)
 
 ######-------------STOPPED HERE
