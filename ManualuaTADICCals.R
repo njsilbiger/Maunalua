@@ -642,11 +642,24 @@ Night_DAG<-DAGdata %>%
   ggtitle('Nighttime')+
   theme(plot.title = element_text(hjust = 0.5))
 
+
+# create text grobs, one for each color
+t1 <- textGrob(expression("Concentration of " * phantom(bold("affluence")) * "and" * phantom(bold("poverty")) * " nationwide"),
+               x = 0.5, y = 1.1, gp = gpar(col = "black"))
+
+t2 <- textGrob(expression(phantom("Concentration of ") * bold("affluence") * phantom(" and poverty nationwide")),
+               x = 0.5, y = 1.1, gp = gpar(col = "#EEB422"))
+
+t3 <- textGrob(expression(phantom("Concentration of affluence and ") * bold("poverty") * phantom(" nationwide")),
+               x = 0.5, y = 1.1, gp = gpar(col = "#238E68"))
+
+grobTree(t1, t2, t3)
+
 Day_DAG +Night_DAG+plot_annotation(title = 'Paths for Black Point', 
                                    tag_levels = "A",
-                                   subtitle = "Line thickness is standardized effect size and color represents <b style='color:#2166AC'>positive</b> and <b style='color:#B2182B'>negative</b> values",
-                                   theme = theme(plot.title = element_markdown(),
-                                           plot.subtitle = element_markdown()))
+                                   #subtitle = 
+                              #     subtitle = "Line thickness is standardized effect size and color represents <b style='color:#2166AC'>positive</b> and <b style='color:#B2182B'>negative</b> values",
+                                  )+ annotation_custom(grobTree(t1, t2, t3))
   ggsave("Output/DAGplots.png", width = 12, height = 8)
 
 ######-------------STOPPED HERE
