@@ -432,8 +432,6 @@ TA_mod<-bf(TAdiffstd ~ pHstd) # NEC ~ pH, which can change by day/night
 #PO_mod<-bf(PO_std ~ Site*SGD_std) # PO ~ SGD which can change by site
 
 # Run the model first for Black Point
-
-
 k_fit_brms <- brm(TA_mod+
                     pH_mod+
                     DIC_mod+ 
@@ -470,9 +468,8 @@ p5<-pp_check(k_fit_brms, resp="TAdiffstd") +
   ggtitle("TA")
 
 # view everything together using patchwork
-p1+p2+p3+p4+p5+plot_layout(guides = "collect") +ggsave("Output/Posteriorchecks.png")
+p1+p2+p3+p4+p5+plot_layout(guides = "collect") +plot_annotation(title = 'Black Point Posterior Predictive Checkes', tag_levels = "A")+ggsave("Output/Posteriorchecks_BlackPoint.png")
 ## pp checks look good!
-
 
 # plot some of the conditional effects
 R1<-plot(conditional_effects(k_fit_brms, "logSGDstd", resp = "logNNstd"), points = TRUE, plot = FALSE)[[1]] +theme_minimal() 
@@ -484,13 +481,12 @@ R6<-plot(conditional_effects(k_fit_brms, "DICdiffstd", resp = "pHstd"), points =
 R7<-plot(conditional_effects(k_fit_brms, "pHstd", resp = "TAdiffstd"), points = TRUE, plot = FALSE)[[1]] +theme_minimal()
 
 R1+R2+R3+R4+R5+R6+R7+
-  plot_annotation(title = 'Marginal Effects for all Models', tag_levels = "A")+
+  plot_annotation(title = 'Marginal Effects for all Black Point Models', tag_levels = "A")+
   plot_layout(guides = "collect")+
-  ggsave("Output/marginaleffects.png", width = 10, height = 7)
+  ggsave("Output/marginaleffects_BlackPoint.png", width = 10, height = 7)
 
 ## get the posterior
 post <- posterior_samples(k_fit_brms)
-
 
 # plot the coefficients
 Cof1<-post %>% 
@@ -541,8 +537,8 @@ Cof3<-post %>%
         axis.ticks.y = element_blank())
 
 Cof1+Cof2+Cof3+
-  plot_annotation(title = 'Standardized coefficients', tag_levels = "A")+
-  ggsave("Output/coefficients.png", width = 10, height = 7)
+  plot_annotation(title = 'Standardized coefficients for Black Point', tag_levels = "A")+
+  ggsave("Output/coefficients_BlackPoint.png", width = 10, height = 7)
 
 # pull out the estimates and set it up to join with the DAG
 estimates<-data.frame(fixef(k_fit_brms)) %>%
@@ -622,7 +618,7 @@ Day_DAG<-DAGdata %>%
  # geom_dag_edges_diagonal() +
 #  geom_dag_text(col = "white") +
   theme_dag() +
-  ggtitle('Daytime')+
+  ggtitle('Black Point Daytime')+
   theme(plot.title = element_text(hjust = 0.5))
 
 # Black Point
@@ -639,27 +635,208 @@ Night_DAG<-DAGdata %>%
   # geom_dag_edges_diagonal() +
   #  geom_dag_text(col = "white") +
   theme_dag() +
-  ggtitle('Nighttime')+
+  ggtitle('Black Point Nighttime')+
   theme(plot.title = element_text(hjust = 0.5))
 
 
-# create text grobs, one for each color
-t1 <- textGrob(expression("Concentration of " * phantom(bold("affluence")) * "and" * phantom(bold("poverty")) * " nationwide"),
-               x = 0.5, y = 1.1, gp = gpar(col = "black"))
 
-t2 <- textGrob(expression(phantom("Concentration of ") * bold("affluence") * phantom(" and poverty nationwide")),
-               x = 0.5, y = 1.1, gp = gpar(col = "#EEB422"))
-
-t3 <- textGrob(expression(phantom("Concentration of affluence and ") * bold("poverty") * phantom(" nationwide")),
-               x = 0.5, y = 1.1, gp = gpar(col = "#238E68"))
-
-grobTree(t1, t2, t3)
-
-Day_DAG +Night_DAG+plot_annotation(title = 'Paths for Black Point', 
+DAGPlot_BP<-Day_DAG +Night_DAG+plot_annotation(title = 'Paths for Black Point', 
                                    tag_levels = "A",
-                                   #subtitle = 
-                              #     subtitle = "Line thickness is standardized effect size and color represents <b style='color:#2166AC'>positive</b> and <b style='color:#B2182B'>negative</b> values",
-                                  )+ annotation_custom(grobTree(t1, t2, t3))
-  ggsave("Output/DAGplots.png", width = 12, height = 8)
+                                   subtitle = "Line thickness is standardized effect size and color represents + (blue) and - (red) values",
+                                  )
+  ggsave("Output/DAGplots_BlackPoint.png", width = 12, height = 8)
 
-######-------------STOPPED HERE
+###### Run Model for Wailupe ###############
+  W_fit_brms <- brm(TA_mod+
+                      pH_mod+
+                      DIC_mod+ 
+                      NN_mod +
+                      PO_mod+
+                      set_rescor(FALSE), 
+                    data=Cdata[Cdata$Site=='W',],
+                    cores=4, chains = 3)
+  
+  # view the effect sized
+  fixef(W_fit_brms)
+
+  #check it
+  #plot(W_fit_brms)
+  
+  Wp1<-pp_check(W_fit_brms, resp="logNNstd") +
+    scale_color_manual(values=c("red", "black"))+
+    ggtitle("NN")
+  
+  Wp2<-pp_check(W_fit_brms, resp="logPOstd") +
+    scale_color_manual(values=c("red", "black"))+
+    ggtitle("PO")
+  
+  Wp3<-pp_check(W_fit_brms, resp="pHstd") +
+    scale_color_manual(values=c("red", "black"))+
+    ggtitle("pH")
+  
+  Wp4<-pp_check(W_fit_brms, resp="DICdiffstd") +
+    scale_color_manual(values=c("red", "black"))+
+    ggtitle("DIC")
+  
+  Wp5<-pp_check(W_fit_brms, resp="TAdiffstd") +
+    scale_color_manual(values=c("red", "black"))+
+    ggtitle("TA")
+  
+  # view everything together using patchwork
+  Wp1+Wp2+Wp3+Wp4+Wp5+plot_layout(guides = "collect") +plot_annotation(title = 'Wailupe Posterior Predictive Checkes', tag_levels = "A")+ggsave("Output/Posteriorchecks_Wailupe.png")
+  ## NN and PO need some work...
+  
+  # plot some of the conditional effects
+  WR1<-plot(conditional_effects(W_fit_brms, "logSGDstd", resp = "logNNstd"), points = TRUE, plot = FALSE)[[1]] +theme_minimal() 
+  WR2<-plot(conditional_effects(W_fit_brms, "logSGDstd", resp = "logPOstd"), points = TRUE, plot = FALSE)[[1]] +theme_minimal()
+  WR3<-plot(conditional_effects(W_fit_brms, "logSGDstd", resp = "pHstd"), points = TRUE, plot = FALSE)[[1]] +theme_minimal()
+  WR4<-plot(conditional_effects(W_fit_brms, "logNNstd:DayNight", resp = "DICdiffstd"), points = TRUE, plot = FALSE)[[1]] +theme_minimal()
+  WR5<-plot(conditional_effects(W_fit_brms, "logPOstd:DayNight", resp = "DICdiffstd"), points = TRUE, plot = FALSE)[[1]] +theme_minimal()
+  WR6<-plot(conditional_effects(W_fit_brms, "DICdiffstd", resp = "pHstd"), points = TRUE, plot = FALSE)[[1]] +theme_minimal()
+  WR7<-plot(conditional_effects(W_fit_brms, "pHstd", resp = "TAdiffstd"), points = TRUE, plot = FALSE)[[1]] +theme_minimal()
+  
+  WR1+WR2+WR3+WR4+WR5+WR6+WR7+
+    plot_annotation(title = 'Marginal Effects for all Wailupe Models', tag_levels = "A")+
+    plot_layout(guides = "collect")+
+    ggsave("Output/marginaleffects_Wailupe.png", width = 10, height = 7)
+  
+  ## get the posterior
+  Wpost <- posterior_samples(W_fit_brms)
+ 
+  
+  # plot the coefficients
+  WCof1<-Wpost %>% 
+    select(starts_with("b")) %>% 
+    gather() %>% 
+    ggplot(aes(x = value, y = reorder(key, value))) +  # note how we used `reorder()` to arrange the coefficients
+    geom_vline(xintercept = 0, color = "firebrick4", alpha = 1/10) +
+    stat_pointintervalh(point_interval = mode_hdi, .width = .95, 
+                        size = 3/4, color = "firebrick4") +
+    labs(title = "Coefficients",
+         x = NULL, y = NULL) +
+    theme_bw() +
+    theme(panel.grid   = element_blank(),
+          panel.grid.major.y = element_line(color = alpha("firebrick4", 1/4), linetype = 3),
+          axis.text.y  = element_text(hjust = 0),
+          axis.ticks.y = element_blank())
+  
+  # plot the intercepts
+  WCof2<-Wpost %>% 
+    select(starts_with("Intercept")) %>% 
+    gather() %>% 
+    ggplot(aes(x = value, y = reorder(key, value))) +  # note how we used `reorder()` to arrange the coefficients
+    geom_vline(xintercept = 0, color = "firebrick4", alpha = 1/10) +
+    stat_pointintervalh(point_interval = mode_hdi, .width = .95, 
+                        size = 3/4, color = "firebrick4") +
+    labs(title = "Intercepts",
+         x = NULL, y = NULL) +
+    theme_bw() +
+    theme(panel.grid   = element_blank(),
+          panel.grid.major.y = element_line(color = alpha("firebrick4", 1/4), linetype = 3),
+          axis.text.y  = element_text(hjust = 0),
+          axis.ticks.y = element_blank())
+  
+  # plot the variances
+  WCof3<-Wpost %>% 
+    select(starts_with("sigma")) %>% 
+    gather() %>% 
+    ggplot(aes(x = value, y = reorder(key, value))) +  # note how we used `reorder()` to arrange the coefficients
+    geom_vline(xintercept = 0, color = "firebrick4", alpha = 1/10) +
+    stat_pointintervalh(point_interval = mode_hdi, .width = .95, 
+                        size = 3/4, color = "firebrick4") +
+    labs(title = "Sigmas",
+         x = NULL, y = NULL) +
+    theme_bw() +
+    theme(panel.grid   = element_blank(),
+          panel.grid.major.y = element_line(color = alpha("firebrick4", 1/4), linetype = 3),
+          axis.text.y  = element_text(hjust = 0),
+          axis.ticks.y = element_blank())
+  
+ WCof1+WCof2+WCof3+
+    plot_annotation(title = 'Standardized coefficients for Wailupe', tag_levels = "A")+
+    ggsave("Output/coefficientsWailupe.png", width = 10, height = 7)
+  
+ # pull out the estimates and set it up to join with the DAG
+ Westimates<-data.frame(fixef(W_fit_brms)) %>%
+   rownames_to_column(var = "name")%>%
+   separate(name, into = c("to","name", "DayNight"), sep = "[^[:alnum:]]+") %>%
+   select(name, to, 3:7)
+ 
+ ### deal with interaction terms
+ Winteractions<-Wpost %>%
+   transmute(logNNstd_Night    = b_DICdiffstd_polylogNNstd21 + `b_DICdiffstd_DayNightNight:polylogNNstd21`,
+             logNNstd_Day = b_DICdiffstd_polylogNNstd21,
+             logNNstd2_Night    = b_DICdiffstd_polylogNNstd22 + `b_DICdiffstd_DayNightNight:polylogNNstd22`,
+             logNNstd2_Day = b_DICdiffstd_polylogNNstd22,
+             logPOstd_Night    = b_DICdiffstd_polylogPOstd21 + `b_DICdiffstd_DayNightNight:polylogPOstd21`,
+             logPOstd_Day = b_DICdiffstd_polylogPOstd21,
+             logPOstd2_Night    = b_DICdiffstd_polylogPOstd22 + `b_DICdiffstd_DayNightNight:polylogPOstd22`,
+             logPOstd2_Day = b_DICdiffstd_polylogPOstd22
+   ) %>%
+   gather(key, value) %>%
+   group_by(key) %>%
+   summarise(Estimate = mean(value), Est.Error = sd(value), 
+             Q2.5 = mean(value) - qt(1- 0.05/2, (n() - 1))*sd(value)/sqrt(n()),
+             Q97.5 = mean(value) + qt(1- 0.05/2, (n() - 1))*sd(value)/sqrt(n())) %>%
+   separate(key, into = c("name", "DayNight")) %>%
+   mutate(to = "DICdiffstd") %>%
+   select(name,to, 2:5)
+ 
+ # remove all the DIC diff params from the model in names and replace with the calculated estimates for day and night
+ Westimates<-Westimates %>%
+   filter(to != 'DICdiffstd') %>%
+   filter(name != 'Intercept') %>%
+   bind_rows(Winteractions) %>%
+   mutate(DayNight = replace_na(DayNight, "Both"))
+ 
+ ## Make the Wailupe DAG.  The dag is the same, but the effect sizes are different
+ WDAGdata<-bigger_dag %>%
+   dag_paths() %>% #### then left join these with the effect sizes
+   as_tibble() %>%
+   left_join(Westimates) %>%
+   mutate(DayNight = replace_na(DayNight, "Both"))
+ 
+ 
+ # DAG during the day for Wailupe
+ WDay_DAG<-WDAGdata %>% 
+   mutate(est_sign = as.character(sign(Estimate)))%>% # add a column for pos and negative
+   mutate(edge_cols = case_when(est_sign == '-1' ~ "#B2182B", 
+                                est_sign == '1' ~ "#2166AC")) %>%
+   # filter(!is.na(Estimate))%>%
+   filter(DayNight %in% c("Both", "Day"))%>%
+   ggplot(aes(x = x, y = y, xend = xend, yend = yend)) +
+   geom_dag_point() +
+   geom_dag_edges(aes(edge_width = abs(Estimate)/5, edge_colour = edge_cols)) +
+   geom_dag_text_repel(aes(label = label))+
+   # geom_dag_edges_diagonal() +
+   #  geom_dag_text(col = "white") +
+   theme_dag() +
+   ggtitle('Wailupe Daytime')+
+   theme(plot.title = element_text(hjust = 0.5))
+ 
+ # Night wailpule
+ WNight_DAG<-WDAGdata %>% 
+   mutate(est_sign = as.character(sign(Estimate)))%>% # add a column for pos and negative
+   mutate(edge_cols = case_when(est_sign == '-1' ~ "#B2182B", 
+                                est_sign == '1' ~ "#2166AC")) %>%
+   # filter(!is.na(Estimate))%>%
+   filter(DayNight %in% c("Both", "Night"))%>%
+   ggplot(aes(x = x, y = y, xend = xend, yend = yend)) +
+   geom_dag_point() +
+   geom_dag_edges(aes(edge_width = abs(Estimate)/5, edge_colour = edge_cols)) +
+   geom_dag_text_repel(aes(label = label))+
+   # geom_dag_edges_diagonal() +
+   #  geom_dag_text(col = "white") +
+   theme_dag() +
+   ggtitle('Wailupe Nighttime')+
+   theme(plot.title = element_text(hjust = 0.5))
+ 
+DAGPlot_W<- WDay_DAG +WNight_DAG+plot_annotation(title = 'Paths for Wailupe', 
+                                    tag_levels = "A",
+                                  #  subtitle = "Line thickness is standardized effect size and color represents + (blue) and - (red) values",
+ )
+ ggsave("Output/DAGplotsWailupe.png", width = 12, height = 8)
+ 
+ (DAGPlot_BP+plot_annotation(title = "Black Point"))/(DAGPlot_W+plot_annotation(title = "Wailupe")) +plot_annotation(tag_levels = "A")+
+   ggsave("Output/DAGplotsBoth.png", width = 12, height = 13)
+ 
