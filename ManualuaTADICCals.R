@@ -832,11 +832,32 @@ DAGPlot_BP<-Day_DAG +Night_DAG+plot_annotation(title = 'Paths for Black Point',
    theme(plot.title = element_text(hjust = 0.5))
  
 DAGPlot_W<- WDay_DAG +WNight_DAG+plot_annotation(title = 'Paths for Wailupe', 
-                                    tag_levels = "A",
+                                    tag_levels = "A"
                                   #  subtitle = "Line thickness is standardized effect size and color represents + (blue) and - (red) values",
  )
  ggsave("Output/DAGplotsWailupe.png", width = 12, height = 8)
  
  (DAGPlot_BP+plot_annotation(title = "Black Point"))/(DAGPlot_W+plot_annotation(title = "Wailupe")) +plot_annotation(tag_levels = "A")+
    ggsave("Output/DAGplotsBoth.png", width = 12, height = 13)
+ 
+ ### Run a PCA of the biogeochemistry between the two sites during low tide in the diffuse zone. ###
+ LowtideDiffuse<-Cdata2 %>%
+   mutate(NtoP = NN/Phosphate)%>%
+   filter(Zone =="Diffuse", Tide=="L")%>%
+   select(Site, NN, Phosphate, pH, TA, DIC, NtoP)
+ 
+ # make a PCA plot
+ PCAplot<-autoplot(prcomp(x = LowtideDiffuse[,2:7], center = TRUE, scale. = TRUE),
+                   data = LowtideDiffuse, colour = 'Site',
+                   loadings = TRUE, loadings.colour = 'black',
+                   loadings.label = TRUE, loadings.label.size = 12 , 
+                   loadings.label.colour = '#2b8cbe',
+                   loadings.label.repel=TRUE, loadings.label.vjust = 1.2, size = 2) +
+   theme_classic() + 
+   theme(legend.text=element_text(size=24)) +
+   theme(axis.text = element_text(color = "black", size = 18), 
+         axis.title.x = element_text(color="black", size=24, face="bold"), 
+         axis.title.y = element_text(color="black", size=24, face="bold"), 
+         panel.grid.major=element_blank(), panel.grid.minor=element_blank())
+ 
  
