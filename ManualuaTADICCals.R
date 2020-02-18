@@ -409,7 +409,10 @@ Cdata <- Cdata %>%
          log_SGD = log(percent_sgd)) %>% # Need to log transform the NN, PO, and SGD data because it is highly left scewed
   mutate_at(.vars = c("pH", "Silicate","DIC.diff","log_SGD","log_NN","Ammonia","log_PO","TA.diff"), .funs = list(std = ~scale(.))) #standardize all the data
 
-
+## change the factors for prettier names
+Cdata<-Cdata %>%
+  mutate(Tide = recode(Tide, L = "Low Tide",  
+                       H = "High Tide"))  ## change the factors for prettier names
 # each level is a model
 ## SGD drives changes in N and P directly; 
 # N + P + NH4 directly drive changes in DIC diff (net production);
