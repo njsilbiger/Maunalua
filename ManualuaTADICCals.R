@@ -423,9 +423,10 @@ colnames(Cdata)<-str_replace_all(colnames(Cdata), "[^[:alnum:]]", "")
 # run one site at a time because they have different biogeochem in the SGD
 NN_mod<-bf(logNNstd ~ logSGDstd) # NN ~ SGD which can change by site
 PO_mod<-bf(logPOstd ~ logSGDstd) # PO ~ SGD which can change by site
-DIC_mod <- bf(DICdiffstd ~ DayNight*(poly(logNNstd,2) + poly(logPOstd,2))) # DIC ~ nutrients, which can change by day/night (i.e. high nutrients could lead to high P during the day and high R at night what have opposite signs). It is also non-linear
+#DIC_mod <- bf(DICdiffstd ~ DayNight*(poly(logNNstd,2) + poly(logPOstd,2))) # DIC ~ nutrients, which can change by day/night (i.e. high nutrients could lead to high P during the day and high R at night what have opposite signs). It is also non-linear
+DIC_mod <- bf(DICdiffstd ~ DayNight*Tide*(logNNstd + logPOstd)) # DIC ~ nutrients, which can change by day/night (i.e. high nutrients could lead to high P during the day and high R at night what have opposite signs). It is also non-linear
 pH_mod <- bf(pHstd ~ DICdiffstd + logSGDstd) # pH ~ NEP + SGD
-TA_mod<-bf(TAdiffstd ~ pHstd) # NEC ~ pH, which can change by day/night
+TA_mod<-bf(TAdiffstd ~ pHstd) # NEC ~ pH, which can change by Tide, because low has more nutrients it may distrupt this relationship (based on Silbiger et al. 2018)
 
 #NN_mod<-bf(NN_std ~ Site*SGD_std) # NN ~ SGD which can change by site
 #NH4_mod<-bf(NH4_std ~ Site*SGD_std) # NH4 ~ SGD which can change by site
@@ -471,14 +472,89 @@ p5<-pp_check(k_fit_brms, resp="TAdiffstd") +
 p1+p2+p3+p4+p5+plot_layout(guides = "collect") +plot_annotation(title = 'Black Point Posterior Predictive Checkes', tag_levels = "A")+ggsave("Output/Posteriorchecks_BlackPoint.png")
 ## pp checks look good!
 
-# plot some of the conditional effects
-R1<-plot(conditional_effects(k_fit_brms, "logSGDstd", resp = "logNNstd"), points = TRUE, plot = FALSE)[[1]] +theme_minimal() 
-R2<-plot(conditional_effects(k_fit_brms, "logSGDstd", resp = "logPOstd"), points = TRUE, plot = FALSE)[[1]] +theme_minimal()
-R3<-plot(conditional_effects(k_fit_brms, "logSGDstd", resp = "pHstd"), points = TRUE, plot = FALSE)[[1]] +theme_minimal()
-R4<-plot(conditional_effects(k_fit_brms, "logNNstd:DayNight", resp = "DICdiffstd"), points = TRUE, plot = FALSE)[[1]] +theme_minimal()
-R5<-plot(conditional_effects(k_fit_brms, "logPOstd:DayNight", resp = "DICdiffstd"), points = TRUE, plot = FALSE)[[1]] +theme_minimal()
-R6<-plot(conditional_effects(k_fit_brms, "DICdiffstd", resp = "pHstd"), points = TRUE, plot = FALSE)[[1]] +theme_minimal()
-R7<-plot(conditional_effects(k_fit_brms, "pHstd", resp = "TAdiffstd"), points = TRUE, plot = FALSE)[[1]] +theme_minimal()
+# plot the conditional effects
+conditions <- make_conditions(k_fit_brms, "Tide")
+
+#R<-plot(conditional_effects(k_fit_brms, "logSGDstd", resp = "logNNstd", conditions = conditions), points = TRUE, plot = FALSE)[[1]] +theme_minimal() 
+R<-conditional_effects(k_fit_brms, "logSGDstd", resp = "logNNstd", method = "predict", resolution = 1000)
+
+R1<-R$logNNstd.logNNstd_logSGDstd %>%
+  ggplot()+
+  geom_line(aes(x = logSGDstd, y = estimate__), lwd = 2, color = 'blue')+
+  geom_ribbon(aes(x = logSGDstd,ymin=lower__, ymax=upper__), linetype=1.5, alpha=0.1, fill = "blue")+
+  geom_point(data = Cdata, aes(x = logSGDstd, y = logNNstd), alpha = 0.1) +
+  xlab("log(Percent SGD) standardized")+
+  ylab("log(NN) standardized")+
+  theme_minimal()
+
+#R2<-plot(conditional_effects(k_fit_brms, "logSGDstd", resp = "logPOstd", conditions = conditions), points = TRUE, plot = FALSE)[[1]] +theme_minimal()
+R<-conditional_effects(k_fit_brms, "logSGDstd", resp = "logPOstd", method = "predict", resolution = 1000)
+R2<-R$logPOstd.logPOstd_logSGDstd %>%
+  ggplot()+
+  geom_line(aes(x = logSGDstd, y = estimate__), lwd = 2, color = 'blue')+
+  geom_ribbon(aes(x = logSGDstd,ymin=lower__, ymax=upper__), linetype=1.5, alpha=0.1, fill = "blue")+
+  geom_point(data = Cdata, aes(x = logSGDstd, y = logPOstd), alpha = 0.1) +
+  xlab("log(Percent SGD) standardized")+
+  ylab("log(PO) standardized")+
+  theme_minimal()
+
+#R3<-plot(conditional_effects(k_fit_brms, "logSGDstd", resp = "pHstd", conditions = conditions), points = TRUE, plot = FALSE)[[1]] +theme_minimal()
+R<-conditional_effects(k_fit_brms, "logSGDstd", resp = "pHstd", method = "predict", resolution = 1000)
+R3<-R$pHstd.pHstd_logSGDstd %>%
+  ggplot()+
+  geom_line(aes(x = logSGDstd, y = estimate__), lwd = 2, color = 'blue')+
+  geom_ribbon(aes(x = logSGDstd,ymin=lower__, ymax=upper__), linetype=1.5, alpha=0.1, fill = "blue")+
+  geom_point(data = Cdata, aes(x = logSGDstd, y = logPOstd), alpha = 0.1) +
+  xlab("log(Percent SGD) standardized")+
+  ylab("pH standardized")+
+  theme_minimal()
+
+#R4<-plot(conditional_effects(k_fit_brms, "logNNstd:DayNight", resp = "DICdiffstd", conditions = conditions), points = TRUE, plot = FALSE)[[1]] +theme_minimal()
+R<-conditional_effects(k_fit_brms, "logNNstd:DayNight", resp = "DICdiffstd", conditions = conditions, method = "predict", resolution = 1000)
+
+R4<-R$`DICdiffstd.DICdiffstd_logNNstd:DayNight`%>%
+  ggplot()+
+  geom_line(aes(x = logNNstd, y = estimate__, group = DayNight, color = DayNight), lwd = 2)+
+  geom_ribbon(aes(x = logNNstd,ymin=lower__, ymax=upper__, group = DayNight, fill = DayNight), linetype=1.5, alpha=0.1)+
+  geom_point(data = Cdata, aes(x = logPOstd, y = DICdiffstd, color = DayNight), alpha = 0.1) +
+  xlab("log(NN) standardized")+
+  ylab("delta DIC standardized")+
+  theme_minimal()+
+  facet_wrap(~Tide)
+
+#R5<-plot(conditional_effects(k_fit_brms, "logPOstd:DayNight", resp = "DICdiffstd", conditions = conditions), points = TRUE, plot = FALSE)[[1]] +theme_minimal()
+R<-conditional_effects(k_fit_brms, "logPOstd:DayNight", resp = "DICdiffstd", conditions = conditions, method = "predict", resolution = 1000)
+R5<-R$`DICdiffstd.DICdiffstd_logPOstd:DayNight`%>%
+  ggplot()+
+  geom_line(aes(x = logPOstd, y = estimate__, group = DayNight, color = DayNight), lwd = 2)+
+  geom_ribbon(aes(x = logPOstd,ymin=lower__, ymax=upper__, group = DayNight, fill = DayNight), linetype=1.5, alpha=0.1)+
+  geom_point(data = Cdata, aes(x = logPOstd, y = DICdiffstd, color = DayNight), alpha = 0.1) +
+  xlab("log(PO) standardized")+
+  ylab("delta DIC standardized")+
+  theme_minimal()+
+  facet_wrap(~Tide)
+
+#R6<-plot(conditional_effects(k_fit_brms, "DICdiffstd", resp = "pHstd", conditions = conditions), points = TRUE, plot = FALSE)[[1]] +theme_minimal()
+R<-conditional_effects(k_fit_brms, "DICdiffstd", resp = "pHstd", method = "predict", resolution = 1000)
+R6<-R$pHstd.pHstd_DICdiffstd%>%
+  ggplot()+
+  geom_line(aes(x = DICdiffstd, y = estimate__), lwd = 2, color = 'blue')+
+  geom_ribbon(aes(x = DICdiffstd,ymin=lower__, ymax=upper__), linetype=1.5, alpha=0.1, fill = "blue")+
+  geom_point(data = Cdata, aes(x = DICdiffstd, y = pHstd ), alpha = 0.1) +
+  xlab("delta DIC standardized")+
+  ylab("pH standardized")+
+  theme_minimal()
+
+#R7<-plot(conditional_effects(k_fit_brms, "pHstd", resp = "TAdiffstd", conditions = conditions), points = TRUE, plot = FALSE)[[1]] +theme_minimal()
+R<-conditional_effects(k_fit_brms, "pHstd", resp = "TAdiffstd", method = "predict", resolution = 1000)
+R7<-R$TAdiffstd.TAdiffstd_pHstd%>%
+  ggplot()+
+  geom_line(aes(x = pHstd, y = estimate__), lwd = 2, color = 'blue')+
+  geom_ribbon(aes(x = pHstd,ymin=lower__, ymax=upper__), linetype=1.5, alpha=0.1, fill = "blue")+
+  geom_point(data = Cdata, aes(x = pHstd, y = TAdiffstd ), alpha = 0.1) +
+  xlab("pH standardized")+
+  ylab("delta TA standardized")+
+  theme_minimal()
 
 R1+R2+R3+R4+R5+R6+R7+
   plot_annotation(title = 'Marginal Effects for all Black Point Models', tag_levels = "A")+
@@ -546,7 +622,7 @@ estimates<-data.frame(fixef(k_fit_brms)) %>%
   separate(name, into = c("to","name", "DayNight"), sep = "[^[:alnum:]]+") %>%
   select(name, to, 3:7)
 
-### deal with interaction terms
+### deal with interaction terms... need to now add tide d remove polynomials
 interactions<-post %>%
   transmute(logNNstd_Night    = b_DICdiffstd_polylogNNstd21 + `b_DICdiffstd_DayNightNight:polylogNNstd21`,
             logNNstd_Day = b_DICdiffstd_polylogNNstd21,
@@ -642,11 +718,15 @@ Night_DAG<-DAGdata %>%
 
 DAGPlot_BP<-Day_DAG +Night_DAG+plot_annotation(title = 'Paths for Black Point', 
                                    tag_levels = "A",
-                                   subtitle = "Line thickness is standardized effect size and color represents + (blue) and - (red) values",
+                                   subtitle = "Line thickness is standardized effect size and color represents + (blue) and - (red) values"
                                   )
   ggsave("Output/DAGplots_BlackPoint.png", width = 12, height = 8)
 
-###### Run Model for Wailupe ###############
+###### Run Model for Wailupe (Need to add interaction terms with high and low tide in the model.. so many interactions) ###############
+  # remove an outlier from the wailupe data
+ # Cdata <- Cdata %>%
+  #  filter(TAdiffstd > -3.9)
+  
   W_fit_brms <- brm(TA_mod+
                       pH_mod+
                       DIC_mod+ 
@@ -687,15 +767,90 @@ DAGPlot_BP<-Day_DAG +Night_DAG+plot_annotation(title = 'Paths for Black Point',
   ## NN and PO need some work...
   
   # plot some of the conditional effects
-  WR1<-plot(conditional_effects(W_fit_brms, "logSGDstd", resp = "logNNstd"), points = TRUE, plot = FALSE)[[1]] +theme_minimal() 
-  WR2<-plot(conditional_effects(W_fit_brms, "logSGDstd", resp = "logPOstd"), points = TRUE, plot = FALSE)[[1]] +theme_minimal()
-  WR3<-plot(conditional_effects(W_fit_brms, "logSGDstd", resp = "pHstd"), points = TRUE, plot = FALSE)[[1]] +theme_minimal()
-  WR4<-plot(conditional_effects(W_fit_brms, "logNNstd:DayNight", resp = "DICdiffstd"), points = TRUE, plot = FALSE)[[1]] +theme_minimal()
-  WR5<-plot(conditional_effects(W_fit_brms, "logPOstd:DayNight", resp = "DICdiffstd"), points = TRUE, plot = FALSE)[[1]] +theme_minimal()
-  WR6<-plot(conditional_effects(W_fit_brms, "DICdiffstd", resp = "pHstd"), points = TRUE, plot = FALSE)[[1]] +theme_minimal()
-  WR7<-plot(conditional_effects(W_fit_brms, "pHstd", resp = "TAdiffstd"), points = TRUE, plot = FALSE)[[1]] +theme_minimal()
+  conditions <- make_conditions(W_fit_brms, "Tide")
   
-  WR1+WR2+WR3+WR4+WR5+WR6+WR7+
+  # WR1<-plot(conditional_effects(W_fit_brms, "logSGDstd", resp = "logNNstd", conditions = conditions), points = TRUE, plot = FALSE)[[1]] +theme_minimal() 
+  # WR2<-plot(conditional_effects(W_fit_brms, "logSGDstd", resp = "logPOstd", conditions = conditions), points = TRUE, plot = FALSE)[[1]] +theme_minimal()
+  # WR3<-plot(conditional_effects(W_fit_brms, "logSGDstd", resp = "pHstd", conditions = conditions), points = TRUE, plot = FALSE)[[1]] +theme_minimal()
+  # WR4<-plot(conditional_effects(W_fit_brms, "logNNstd:DayNight", resp = "DICdiffstd", conditions = conditions), points = TRUE, plot = FALSE)[[1]] +theme_minimal()
+  # WR5<-plot(conditional_effects(W_fit_brms, "logPOstd:DayNight", resp = "DICdiffstd", conditions = conditions), points = TRUE, plot = FALSE)[[1]] +theme_minimal()
+  # WR6<-plot(conditional_effects(W_fit_brms, "DICdiffstd", resp = "pHstd", conditions = conditions), points = TRUE, plot = FALSE)[[1]] +theme_minimal()
+  # WR7<-plot(conditional_effects(W_fit_brms, "pHstd:Tide", resp = "TAdiffstd"), points = TRUE, plot = FALSE)[[1]] +theme_minimal()
+  # 
+
+  W<-conditional_effects(W_fit_brms, "logSGDstd", resp = "logNNstd", method = "predict", resolution = 1000)
+  WR1<-W$logNNstd.logNNstd_logSGDstd %>%
+    ggplot()+
+    geom_line(aes(x = logSGDstd, y = estimate__), lwd = 2, color = 'blue')+
+    geom_ribbon(aes(x = logSGDstd,ymin=lower__, ymax=upper__), linetype=1.5, alpha=0.1, fill = "blue")+
+    geom_point(data = Cdata, aes(x = logSGDstd, y = logNNstd), alpha = 0.1) +
+    xlab("log(Percent SGD) standardized")+
+    ylab("log(NN) standardized")+
+    theme_minimal()
+  
+ W<-conditional_effects(W_fit_brms, "logSGDstd", resp = "logPOstd", method = "predict", resolution = 1000)
+ WR2<-W$logPOstd.logPOstd_logSGDstd %>%
+    ggplot()+
+    geom_line(aes(x = logSGDstd, y = estimate__), lwd = 2, color = 'blue')+
+    geom_ribbon(aes(x = logSGDstd,ymin=lower__, ymax=upper__), linetype=1.5, alpha=0.1, fill = "blue")+
+    geom_point(data = Cdata, aes(x = logSGDstd, y = logPOstd), alpha = 0.1) +
+    xlab("log(Percent SGD) standardized")+
+    ylab("log(PO) standardized")+
+    theme_minimal()
+  
+  W<-conditional_effects(W_fit_brms, "logSGDstd", resp = "pHstd", method = "predict", resolution = 1000)
+  WR3<-W$pHstd.pHstd_logSGDstd %>%
+    ggplot()+
+    geom_line(aes(x = logSGDstd, y = estimate__), lwd = 2, color = 'blue')+
+    geom_ribbon(aes(x = logSGDstd,ymin=lower__, ymax=upper__), linetype=1.5, alpha=0.1, fill = "blue")+
+    geom_point(data = Cdata, aes(x = logSGDstd, y = logPOstd), alpha = 0.1) +
+    xlab("log(Percent SGD) standardized")+
+    ylab("pH standardized")+
+    theme_minimal()
+  
+  W<-conditional_effects(W_fit_brms, "logNNstd:DayNight", resp = "DICdiffstd", conditions = conditions, method = "predict", resolution = 1000)
+  WR4<-W$`DICdiffstd.DICdiffstd_logNNstd:DayNight`%>%
+    ggplot()+
+    geom_line(aes(x = logNNstd, y = estimate__, group = DayNight, color = DayNight), lwd = 2)+
+    geom_ribbon(aes(x = logNNstd,ymin=lower__, ymax=upper__, group = DayNight, fill = DayNight), linetype=1.5, alpha=0.1)+
+    geom_point(data = Cdata, aes(x = logPOstd, y = DICdiffstd, color = DayNight), alpha = 0.1) +
+    xlab("log(NN) standardized")+
+    ylab("delta DIC standardized")+
+    theme_minimal()+
+    facet_wrap(~Tide)
+  
+  W<-conditional_effects(W_fit_brms, "logPOstd:DayNight", resp = "DICdiffstd", conditions = conditions, method = "predict", resolution = 1000)
+  WR5<-W$`DICdiffstd.DICdiffstd_logPOstd:DayNight`%>%
+    ggplot()+
+    geom_line(aes(x = logPOstd, y = estimate__, group = DayNight, color = DayNight), lwd = 2)+
+    geom_ribbon(aes(x = logPOstd,ymin=lower__, ymax=upper__, group = DayNight, fill = DayNight), linetype=1.5, alpha=0.1)+
+    geom_point(data = Cdata, aes(x = logPOstd, y = DICdiffstd, color = DayNight), alpha = 0.1) +
+    xlab("log(PO) standardized")+
+    ylab("delta DIC standardized")+
+    theme_minimal()+
+    facet_wrap(~Tide)
+  
+  W<-conditional_effects(W_fit_brms, "DICdiffstd", resp = "pHstd", method = "predict", resolution = 1000)
+  WR6<-W$pHstd.pHstd_DICdiffstd%>%
+    ggplot()+
+    geom_line(aes(x = DICdiffstd, y = estimate__), lwd = 2, color = 'blue')+
+    geom_ribbon(aes(x = DICdiffstd,ymin=lower__, ymax=upper__), linetype=1.5, alpha=0.1, fill = "blue")+
+    geom_point(data = Cdata, aes(x = DICdiffstd, y = pHstd ), alpha = 0.1) +
+    xlab("delta DIC standardized")+
+    ylab("pH standardized")+
+    theme_minimal()
+  
+  W<-conditional_effects(W_fit_brms, "pHstd", resp = "TAdiffstd", method = "predict", resolution = 1000)
+  WR7<-W$TAdiffstd.TAdiffstd_pHstd%>%
+    ggplot()+
+    geom_line(aes(x = pHstd, y = estimate__), lwd = 2, color = 'blue')+
+    geom_ribbon(aes(x = pHstd,ymin=lower__, ymax=upper__), linetype=1.5, alpha=0.1, fill = "blue")+
+    geom_point(data = Cdata, aes(x = pHstd, y = TAdiffstd ), alpha = 0.1) +
+    xlab("pH standardized")+
+    ylab("delta TA standardized")+
+    theme_minimal()
+  
+    WR1+WR2+WR3+WR4+WR5+WR6+WR7+
     plot_annotation(title = 'Marginal Effects for all Wailupe Models', tag_levels = "A")+
     plot_layout(guides = "collect")+
     ggsave("Output/marginaleffects_Wailupe.png", width = 10, height = 7)
