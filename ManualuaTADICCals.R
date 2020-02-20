@@ -610,9 +610,9 @@ R7<-R$TAdiffstd.TAdiffstd_pHstd%>%
 R<-conditional_effects(k_fit_brms, "Tempinstd", resp = "TAdiffstd", method = "predict", resolution = 1000)
 R8<-R$TAdiffstd.TAdiffstd_Tempinstd%>%
   ggplot()+
-  geom_line(aes(x = Tempinstd, y = estimate__), lwd = 2, color = 'blue')+
-  geom_ribbon(aes(x = Tempinstd,ymin=lower__, ymax=upper__), linetype=1.5, alpha=0.1, fill = "blue")+
-  geom_point(data = Cdata, aes(x = Tempinstd, y = TAdiffstd ), alpha = 0.1) +
+  geom_line(aes(x = Tempinstd, y = estimate__), lwd = 2, color = "blue")+
+  geom_ribbon(aes(x = Tempinstd,ymin=lower__, ymax=upper__),fill = "blue", linetype=1.5, alpha=0.1)+
+  geom_point(data = Cdata, aes(x = Tempinstd, y = TAdiffstd), alpha = 0.1) +
   xlab("Temperature standardized")+
   ylab("delta TA standardized")+
   theme_minimal()
