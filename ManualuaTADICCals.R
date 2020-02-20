@@ -117,20 +117,20 @@ TA.diff<-c(W.diff,BP.diff)
 Cdata$TA.diff<-TA.diff
 
 #calculate difference between mixing line and actual DIC
-BP.diff.DIC<- BP.DIC.Pred-Cdata$DIC[Cdata$Site=='BP'] #positive values are calcification and negative are dissolution
-W.diff.DIC<- W.DIC.Pred-Cdata$DIC[Cdata$Site=='W'] #positive values are calcification and negative are dissolution
+BP.diff.DIC<- BP.DIC.Pred-Cdata$DIC[Cdata$Site=='BP'] #positive values are net photosynthesis and negative are respiration
+W.diff.DIC<- W.DIC.Pred-Cdata$DIC[Cdata$Site=='W'] 
 DIC.diff<-c(W.diff.DIC,BP.diff.DIC)
 Cdata$DIC.diff<-DIC.diff
 
 #calculate difference between mixing line and actual NN
-BP.diff.NN<- BP.NN.Pred-Cdata$NN[Cdata$Site=='BP'] #positive values are calcification and negative are dissolution
-W.diff.NN<- W.NN.Pred-Cdata$NN[Cdata$Site=='W'] #positive values are calcification and negative are dissolution
+BP.diff.NN<- BP.NN.Pred-Cdata$NN[Cdata$Site=='BP'] 
+W.diff.NN<- W.NN.Pred-Cdata$NN[Cdata$Site=='W'] 
 NN.diff<-c(W.diff.NN,BP.diff.NN)
 Cdata$NN.diff<-NN.diff
 
 #calculate difference between mixing line and actual PO
-BP.diff.PO<- BP.PO.Pred-Cdata$Phosphate[Cdata$Site=='BP'] #positive values are calcification and negative are dissolution
-W.diff.PO<- W.PO.Pred-Cdata$Phosphate[Cdata$Site=='W'] #positive values are calcification and negative are dissolution
+BP.diff.PO<- BP.PO.Pred-Cdata$Phosphate[Cdata$Site=='BP'] 
+W.diff.PO<- W.PO.Pred-Cdata$Phosphate[Cdata$Site=='W'] 
 PO.diff<-c(W.diff.PO,BP.diff.PO)
 Cdata$PO.diff<-PO.diff
 
@@ -162,14 +162,13 @@ ggplot(Cdata, aes(group = Site))+
   ggtitle('PO')+
   facet_wrap(~Site)
 
+
 ####################Anaysis########################### 
 # run anova to for Wailupe
 
 #Make tide just high and low instead of H1, H2, L1, and L2
 Cdata$Tide<-droplevels(Cdata$Tide) #this removes levels that don'e exist anymore (empty spaces for example)
 levels(Cdata$Tide)<-c("H","H","L","L") # this makes H1 and H2 both H and same for L1 and L2
-
-
 
 # filter out the zones so that it is only diffures, ambient, and transition
 Cdata<-Cdata %>% 
@@ -178,7 +177,6 @@ Cdata<-Cdata %>%
 
 modW<-lmer(TA.diff~DIC.diff*Zone*Tide +(1|Season)+(1|Waypoint), data = Cdata[Cdata$Site=='W',])
 anova(modW)
-
 
 #make a prediction plot with tide on the sample plot
 # easily to get a dataframe to do it yourself with ggplot2:
@@ -268,7 +266,6 @@ AllZone<-plot_grid(BP.plot.zone, W.plot.zone, labels=c('A', 'B'), nrow = 2)
 #save the output in the output folder
 ggsave(filename = 'Output/PlotsbyTide.pdf', plot = AllTide,device = 'pdf', width = 10, height = 8)
 ggsave(filename = 'Output/PlotsbyZone.pdf', plot = AllZone,device = 'pdf', width = 8, height = 8)
-
 
 
 ## Look at relationship between feedbacks and salinity or silicate versus deltas
@@ -407,7 +404,7 @@ Cdata <- Cdata %>%
   mutate(log_NN = log(NN),
          log_PO = log(Phosphate),
          log_SGD = log(percent_sgd)) %>% # Need to log transform the NN, PO, and SGD data because it is highly left scewed
-  mutate_at(.vars = c("pH", "Silicate","DIC.diff","log_SGD","log_NN","Ammonia","log_PO","TA.diff"), .funs = list(std = ~scale(.))) #standardize all the data
+  mutate_at(.vars = c("pH", "Silicate","DIC.diff","log_SGD","log_NN","Ammonia","log_PO","TA.diff", "Salinity"), .funs = list(std = ~scale(.))) #standardize all the data
 
 ## change the factors for prettier names
 Cdata<-Cdata %>%
@@ -425,9 +422,10 @@ colnames(Cdata)<-str_replace_all(colnames(Cdata), "[^[:alnum:]]", "")
 
 # run one site at a time because they have different biogeochem in the SGD
 NN_mod<-bf(logNNstd ~ logSGDstd) # NN ~ SGD which can change by site
-PO_mod<-bf(logPOstd ~ logSGDstd) # PO ~ SGD which can change by site
+#PO_mod<-bf(logPOstd ~ logSGDstd) # PO ~ SGD which can change by site
 #DIC_mod <- bf(DICdiffstd ~ DayNight*(poly(logNNstd,2) + poly(logPOstd,2))) # DIC ~ nutrients, which can change by day/night (i.e. high nutrients could lead to high P during the day and high R at night what have opposite signs). It is also non-linear
-DIC_mod <- bf(DICdiffstd ~ DayNight*Tide*(logNNstd + logPOstd)) # DIC ~ nutrients, which can change by day/night (i.e. high nutrients could lead to high P during the day and high R at night what have opposite signs). It is also non-linear
+#DIC_mod <- bf(DICdiffstd ~ DayNight*Tide*(logNNstd + logPOstd)) # DIC ~ nutrients, which can change by day/night (i.e. high nutrients could lead to high P during the day and high R at night what have opposite signs). It is also non-linear
+DIC_mod <- bf(DICdiffstd ~ DayNight*Salinitystd*logNNstd) # DIC ~ nutrients, which can change by day/night (i.e. high nutrients could lead to high P during the day and high R at night what have opposite signs). It is also non-linear
 pH_mod <- bf(pHstd ~ DICdiffstd + logSGDstd) # pH ~ NEP + SGD
 TA_mod<-bf(TAdiffstd ~ pHstd) # NEC ~ pH, which can change by Tide, because low has more nutrients it may distrupt this relationship (based on Silbiger et al. 2018)
 
@@ -476,7 +474,8 @@ p1+p2+p3+p4+p5+plot_layout(guides = "collect") +plot_annotation(title = 'Black P
 ## pp checks look good!
 
 # plot the conditional effects
-conditions <- make_conditions(k_fit_brms, "Tide")
+#conditions <- make_conditions(k_fit_brms, "Tide")
+conditions <- make_conditions(k_fit_brms, "Salinitystd")
 
 #R<-plot(conditional_effects(k_fit_brms, "logSGDstd", resp = "logNNstd", conditions = conditions), points = TRUE, plot = FALSE)[[1]] +theme_minimal() 
 R<-conditional_effects(k_fit_brms, "logSGDstd", resp = "logNNstd", method = "predict", resolution = 1000)
