@@ -447,6 +447,7 @@ colnames(Cdata)<-str_replace_all(colnames(Cdata), "[^[:alnum:]]", "")
 NN_mod<-bf(logNNstd ~ logSGDstd) # NN ~ SGD which can change by site
 Temp_mod<-bf(Tempinstd ~ DayNight*logSGDstd*Season) ## SGD has cooler water and the intercept changes with season
 #PO_mod<-bf(logPOstd ~ logSGDstd) # PO ~ SGD which can change by site
+# saaturating curve: b1*logNNstd/(b2+logNNstd) 
 DIC_mod <- bf(DICdiffstd ~ DayNight*(poly(logNNstd,2)+poly(Tempinstd,2))) # DIC ~ nutrients and temperature, which can change by day/night (i.e. high nutrients could lead to high P during the day and high R at night what have opposite signs). It is also non-linear
 #DIC_mod <- bf(DICdiffstd ~ DayNight*Tide*(logNNstd + logPOstd)) # DIC ~ nutrients, which can change by day/night (i.e. high nutrients could lead to high P during the day and high R at night what have opposite signs). It is also non-linear
 #DIC_mod <- bf(DICdiffstd ~ DayNight*SalResid*logNNstd) # DIC ~ nutrients, which can change by day/night (i.e. high nutrients could lead to high P during the day and high R at night what have opposite signs). It is also non-linear
@@ -456,6 +457,8 @@ TA_mod<-bf(TAdiffstd ~ pHstd+poly(Tempinstd,2)) # NEC ~ pH and temperature, whic
 #NN_mod<-bf(NN_std ~ Site*SGD_std) # NN ~ SGD which can change by site
 #NH4_mod<-bf(NH4_std ~ Site*SGD_std) # NH4 ~ SGD which can change by site
 #PO_mod<-bf(PO_std ~ Site*SGD_std) # PO ~ SGD which can change by site
+#prior1 <- prior(gamma(1.5, 0.8), nlpar = "b1") +
+ # prior(gamma(1.5, 0.002), nlpar = "b2")
 
 # Run the model first for Black Point
 k_fit_brms <- brm(TA_mod+
@@ -464,7 +467,7 @@ k_fit_brms <- brm(TA_mod+
                     Temp_mod+
                     NN_mod +
                     #PO_mod+
-                     set_rescor(FALSE), 
+                     set_rescor(FALSE),
                    data=Cdata[Cdata$Site=='BP',],
                    cores=4, chains = 3)
 
