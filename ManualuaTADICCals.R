@@ -56,6 +56,7 @@ W.end.NN<-71
 W.end.Si<-810
 
 #hot end point from 05/24/2015
+#Spring
 Hot.Sal<- 35.1961
 Hot.pH<-8.069
 Hot.DIC<-2006.3
@@ -65,12 +66,11 @@ Hot.PO<-0.11
 Hot.NN<-0.01
 Hot.Si<-1.17
 
-
-
-#Hot.CO2<-carb(flag=8, Hot.pH, Hot.TA/1000000, S=Hot.Sal, T=Hot.temp, Patm=1, P=0, Pt=0, Sit=0,
-#          k1k2="x", kf="x", ks="d", pHscale="T", b="u74", gas="potential")
-
-#Hot.CO2[,c("CO2","HCO3","CO3","DIC","ALK")]<-Hot.CO2[,c("CO2","HCO3","CO3","DIC","ALK")]*1000000
+#Fall (October 14th, 2015)
+Hot.Sal.Fall<-35.2708
+Hot.pH.Fall<-8.077
+Hot.DIC.Fall<-1996.8
+HOT.TA.Fall<-2320
 
 #create the regression
 
