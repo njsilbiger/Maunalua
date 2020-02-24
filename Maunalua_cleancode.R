@@ -408,36 +408,152 @@ estimates<-data.frame(fixef(k_fit_brms)) %>%
   rownames_to_column(var = "name")%>%
   separate(name, into = c("to","name"), sep = "_") %>%
   select(name, to, 3:6) %>%
-  filter(name != 'Intercept') # remove the intercepts for the DAG
+  filter(name != 'Intercept', to != 'DICdiffstd', to !="Tempinstd") # remove the intercepts and interaction terms (Calculated below) for the DAG
+  
+### deal with interaction terms. First for DIC models
+InteractionsDIC<-post %>%
+  transmute(logNNstd_Night    = `b_DICdiffstd_polylogNNstd21` + `b_DICdiffstd_DayNightNight:polylogNNstd21`,
+            logNNstd_Day = `b_DICdiffstd_polylogNNstd21`,
+            logNNstd2_Night    = `b_DICdiffstd_polylogNNstd22` + `b_DICdiffstd_DayNightNight:polylogNNstd22`,
+            logNNstd2_Day = `b_DICdiffstd_polylogNNstd22`,
+            Tempinstd_Night    = `b_DICdiffstd_polyTempinstd21` + `b_DICdiffstd_DayNightNight:polyTempinstd21`,
+            Tempinstd_Day = `b_DICdiffstd_polyTempinstd21`,
+            Tempinstd2_Night    = `b_DICdiffstd_polyTempinstd22` + `b_DICdiffstd_DayNightNight:polyTempinstd22`,
+            Tempinstd2_Day = `b_DICdiffstd_polyTempinstd22`
+          ) %>%
+  gather(key, value) %>%
+  group_by(key) %>%
+  summarise(Estimate = mean(value), Est.Error = sd(value),
+            Q2.5 = mean(value) - qt(1- 0.05/2, (n() - 1))*sd(value)/sqrt(n()),
+            Q97.5 = mean(value) + qt(1- 0.05/2, (n() - 1))*sd(value)/sqrt(n())) %>%
+  separate(key, into = c("name", "DayNight", "Season")) %>%
+  mutate(to = "DICdiffstd") %>%
+  select(name,to, 2:7)
 
-### deal with interaction terms... ugh I dont think I calculated these right
-# interactions<-post %>%
-#   transmute(logNNstd_Night    = b_DICdiffstd_polylogNNstd21 + `b_DICdiffstd_DayNightNight:polylogNNstd21`,
-#             logNNstd_Day = b_DICdiffstd_polylogNNstd21,
-#             logNNstd2_Night    = b_DICdiffstd_polylogNNstd22 + `b_DICdiffstd_DayNightNight:polylogNNstd22`,
-#             logNNstd2_Day = b_DICdiffstd_polylogNNstd22,
-#             logTempstd_Night    = b_DICdiffstd_polyTempinstd21 + `b_DICdiffstd_DayNightNight:polyTempinstd21`,
-#             logTempstd_Day = b_DICdiffstd_polyTempinstd21,
-#             logTempstd2_Night    = b_DICdiffstd_polyTempinstd22 + `b_DICdiffstd_DayNightNight:polyTempinstd22`,
-#             logTempstd2_Day = b_DICdiffstd_polyTempinstd22,
-#             Tempinstd_Day_Spring = `b_Tempinstd_logSGDstd` +`b_Tempinstd_logSGDstd:SeasonSPRING`,
-#             Tempinstd_Night_Spring = `b_Tempinstd_logSGDstd` +`b_Tempinstd_DayNightNight:logSGDstd:SeasonSPRING` +`b_Tempinstd_DayNightNight`,
-#             Tempinstd_Day_Fall = `b_Tempinstd_logSGDstd`,
-#             Tempinstd_Night_Fall = `b_Tempinstd_logSGDstd`+`b_Tempinstd_DayNightNight`
-#   ) %>%
-#   gather(key, value) %>%
-#   group_by(key) %>%
-#   summarise(Estimate = mean(value), Est.Error = sd(value), 
-#             Q2.5 = mean(value) - qt(1- 0.05/2, (n() - 1))*sd(value)/sqrt(n()),
-#             Q97.5 = mean(value) + qt(1- 0.05/2, (n() - 1))*sd(value)/sqrt(n())) %>%
-#   separate(key, into = c("name", "DayNight")) %>%
-#   mutate(to = "DICdiffstd") %>%
-#   select(name,to, 2:5)
+# Interactions temp SGD
+InteractionsSGD<-post %>%
+  transmute(
+            logSGDstd_Day_Spring = `b_Tempinstd_logSGDstd` +`b_Tempinstd_logSGDstd:SeasonSPRING`,
+            logSGDstd_Night_Spring = `b_Tempinstd_logSGDstd` +`b_Tempinstd_DayNightNight:logSGDstd:SeasonSPRING` +`b_Tempinstd_DayNightNight`,
+            logSGDstd_Day_Fall = `b_Tempinstd_logSGDstd`,
+            logSGDstd_Night_Fall = `b_Tempinstd_logSGDstd`+`b_Tempinstd_DayNightNight`
+  ) %>%
+  gather(key, value) %>%
+  group_by(key) %>%
+  summarise(Estimate = mean(value), Est.Error = sd(value),
+            Q2.5 = mean(value) - qt(1- 0.05/2, (n() - 1))*sd(value)/sqrt(n()),
+            Q97.5 = mean(value) + qt(1- 0.05/2, (n() - 1))*sd(value)/sqrt(n())) %>%
+  separate(key, into = c("name", "DayNight", "Season")) %>%
+  mutate(to = "Tempinstd") %>%
+  select(name,to, 2:7)
+
+#Bind everything together
+  estimates<-bind_rows(estimates, InteractionsDIC, InteractionsSGD) %>% # bind with the estimates above
+  mutate(DayNight = replace_na(DayNight, "Both"),
+         Season = replace_na(Season, "Both"))
+  # change the "poly names'
+  estimates$name[estimates$name=='polyTempinstd21'] = 'Tempinstd'
+  estimates$name[estimates$name=='polyTempinstd22'] = 'Tempinstd2'
 
 
 ### Make a DAG ####
+  bigger_dag <- dagify(TAdiffstd ~ pHstd+ Tempinstd+ Tempinstd2,
+                       pHstd ~ DICdiffstd + logSGDstd,
+                       DICdiffstd ~ logNNstd + Tempinstd +logNNstd2 + Tempinstd2,
+                       Tempinstd ~ logSGDstd,
+                       logNNstd ~ logSGDstd,
+                       exposure = "logSGDstd",
+                       outcome = "TAdiffstd",
+                       labels = c("TAdiffstd" = "NEC",
+                                  "pHstd" = "pH",
+                                  "Tempinstd" = "Temperature",
+                                  "Tempinstd2" = "Temperature^2",
+                                  "logSGDstd" = "Log % SGD",
+                                  "DICdiffstd" ="NEP",
+                                  "logNNstd" = "log NN",
+                                  "logNNstd2" = "log NN^2")) 
+  
+  
+  #quick visual
+  ggdag(bigger_dag, use_labels = "label", text = FALSE)+
+    theme_dag()
+  
+  # join it with the estimates so that I can add colors and line thickness to related to effectsize
+  DAGdata<-bigger_dag %>%
+    dag_paths() %>% #### then left join these with the effect sizes
+    as_tibble() %>%
+    left_join(estimates) %>%
+    mutate(DayNight = replace_na(DayNight, "Both"),
+           Season = replace_na(Season, "Both"))%>%
+    mutate(est_sign = as.character(sign(Estimate)))%>% # add a column for pos and negative
+    mutate(edge_cols = case_when(est_sign == '-1' ~ "#d6604d",#"#fc8d59", 
+                                 est_sign == '1' ~ "#4393c3")) %>%
+    mutate(edge_lines = ifelse(sign(Q2.5)==sign(Q97.5),1,2),# add a dashed or solid line for significant effects (i.e. 95%CI does not overlap 0)
+           edge_alpha = ifelse(sign(Q2.5)==sign(Q97.5),1,0.1)# make non-significant transparent
+           ) 
 
-###### Run Model for Wailupe (Need to add interaction terms with high and low tide in the model.. so many interactions) ###############
+  #Day Spring DAG
+  DaySpring_DAG<-DAGdata %>% 
+    filter(DayNight %in% c("Both", "Day"), Season %in% c("Both", "Spring"))%>%
+    ggplot(aes(x = x, y = y, xend = xend, yend = yend)) +
+    geom_dag_edges(aes(edge_width = abs(Estimate), 
+                       edge_colour = edge_cols, 
+                       #edge_linetype = edge_lines,
+                       edge_alpha = edge_alpha)) +
+    geom_dag_point() +
+    geom_dag_text_repel(aes(label = label))+
+    theme_dag() +
+    ggtitle('Spring Daytime')+
+    theme(plot.title = element_text(hjust = 0.5))
+                                                                    
+  
+  #Night Spring DAG
+  NightSpring_DAG<-DAGdata %>% 
+    filter(DayNight %in% c("Both", "Night"), Season %in% c("Both", "Spring"))%>%
+    ggplot(aes(x = x, y = y, xend = xend, yend = yend)) +
+    geom_dag_edges(aes(edge_width = abs(Estimate), 
+                       edge_colour = edge_cols, 
+                       #edge_linetype = edge_lines,
+                       edge_alpha = edge_alpha)) +
+    geom_dag_point() +
+    geom_dag_text_repel(aes(label = label))+
+    theme_dag() +
+    ggtitle('Spring Nighttime')+
+    theme(plot.title = element_text(hjust = 0.5))
+  
+  #Day Fall DAG
+  DayFall_DAG<-DAGdata %>% 
+    filter(DayNight %in% c("Both", "Day"), Season %in% c("Both", "Fall"))%>%
+    ggplot(aes(x = x, y = y, xend = xend, yend = yend)) +
+    geom_dag_edges(aes(edge_width = abs(Estimate), 
+                       edge_colour = edge_cols, 
+                       #edge_linetype = edge_lines,
+                       edge_alpha = edge_alpha)) +
+    geom_dag_point() +
+    geom_dag_text_repel(aes(label = label))+
+    theme_dag() +
+    ggtitle('Fall Daytime')+
+    theme(plot.title = element_text(hjust = 0.5))
+
+  #Night Fall DAG
+  NightFall_DAG<-DAGdata %>% 
+    filter(DayNight %in% c("Both", "Night"), Season %in% c("Both", "Fall"))%>%
+    ggplot(aes(x = x, y = y, xend = xend, yend = yend)) +
+     geom_dag_edges(aes(edge_width = abs(Estimate), 
+                       edge_colour = edge_cols, 
+                       #edge_linetype = edge_lines,
+                       edge_alpha = edge_alpha)) +
+    geom_dag_point() +
+    geom_dag_text_repel(aes(label = label))+
+    theme_dag() +
+    ggtitle('Fall Nighttime')+
+    theme(plot.title = element_text(hjust = 0.5)) 
+  
+  DAGPlot_BP<- (DaySpring_DAG +NightSpring_DAG)/(DayFall_DAG +NightFall_DAG)+
+    plot_annotation(tag_levels = "A",title = "Black Point")+
+    ggsave("Output/DAGplotsBP.pdf", width = 12, height = 13, useDingbats = FALSE)
+  
+  ###### Run Model for Wailupe (Need to add interaction terms with high and low tide in the model.. so many interactions) ###############
 # remove an outlier from the wailupe data
 # Cdata <- Cdata %>%
 #  filter(TAdiffstd > -3.9)
