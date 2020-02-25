@@ -18,6 +18,7 @@ library(bayesplot)
 library(dagitty)
 library(ggdag)
 library(ggtext)
+library(modelr)
 
 #load data
 Cdata<-read.csv('chemicaldata_maunalua.csv')
@@ -353,19 +354,27 @@ post <- posterior_samples(k_fit_brms)
 # plot the coefficients
 Cof1<-post %>% 
   select(starts_with("b"),-ends_with("Intercept")) %>%
- # select(-ends_with("Intercept")) %>%
   gather() %>% 
-  ggplot(aes(x = value, y = reorder(key, value))) +  # note how we used `reorder()` to arrange the coefficients
-  geom_vline(xintercept = 0, color = "firebrick4", alpha = 1/10) +
-  stat_pointintervalh(point_interval = mode_hdi, .width = .95, 
-                      size = 3/4, color = "firebrick4") +
-  labs(title = "Coefficients",
+  group_by(key)%>%
+  median_hdci()%>%
+  mutate(sig = ifelse(sign(.lower)==sign(.upper),'yes','no'))%>%# if not significant make it grey
+  separate(col = key,into = c("b", "dependent", "independent"),sep = "_")%>% #loose the b and bring the values back together
+  mutate(key = paste(dependent, independent))%>%
+  ggplot(aes(x = value, y = reorder(key, value), color = sig)) +  # note how we used `reorder()` to arrange the coefficients
+  geom_vline(xintercept = 0, alpha = 1/10, color = 'firebrick4') +
+  geom_point()+
+  geom_errorbarh(aes(xmin = .lower, xmax = .upper), height = 0)+
+  scale_color_manual(values = c("grey","firebrick4"))+
+  # stat_pointintervalh(point_interval = mode_hdi, .width = .95, 
+  #                     size = 3/4, color = "firebrick4") +
+  labs(title = "Black Point",
        x = NULL, y = NULL) +
   theme_bw() +
   theme(panel.grid   = element_blank(),
         panel.grid.major.y = element_line(color = alpha("firebrick4", 1/4), linetype = 3),
         axis.text.y  = element_text(hjust = 0),
-        axis.ticks.y = element_blank())
+        axis.ticks.y = element_blank(),
+        legend.position = "none")
 
 # plot the intercepts
 Cof2<-post %>% 
@@ -554,9 +563,6 @@ InteractionsSGD<-post %>%
     ggsave("Output/DAGplotsBP.pdf", width = 12, height = 13, useDingbats = FALSE)
   
   ###### Run Model for Wailupe (Need to add interaction terms with high and low tide in the model.. so many interactions) ###############
-# remove an outlier from the wailupe data
-# Cdata <- Cdata %>%
-#  filter(TAdiffstd > -3.9)
 
 W_fit_brms <- brm(TA_mod+
                     pH_mod+
@@ -656,7 +662,7 @@ WR3<-W$pHstd.pHstd_logSGDstd %>%
   scale_x_continuous(breaks = c(0,1,5,10,25))+
   theme_minimal()
 
-W<-conditional_effects(W_fit_brms, "logNNstd:DayNight", resp = "DICdiffstd", conditions = conditions, method = "predict", resolution = 1000)
+W<-conditional_effects(W_fit_brms, "logNNstd:DayNight", resp = "DICdiffstd", method = "predict", resolution = 1000)
 WR4<-W$`DICdiffstd.DICdiffstd_logNNstd:DayNight`%>%
   mutate(estimate = estimate__*attr(Cdata$DICdiffstd,"scaled:scale")+attr(Cdata$DICdiffstd,"scaled:center"),
          lower = lower__*attr(Cdata$DICdiffstd,"scaled:scale")+attr(Cdata$DICdiffstd,"scaled:center"),
@@ -690,34 +696,39 @@ WR5<-W$`DICdiffstd.DICdiffstd_Tempinstd:DayNight`%>%
   theme_minimal()
 
 
-W<-conditional_effects(W_fit_brms, "DICdiffstd", resp = "pHstd", method = "predict", resolution = 1000)
-WR6<-W$pHstd.pHstd_DICdiffstd%>%
-  mutate(estimate = estimate__*attr(Cdata$pHstd,"scaled:scale")+attr(Cdata$pHstd,"scaled:center"),
-         lower = lower__*attr(Cdata$pHstd,"scaled:scale")+attr(Cdata$pHstd,"scaled:center"),
-         upper = upper__*attr(Cdata$pHstd,"scaled:scale")+attr(Cdata$pHstd,"scaled:center"),
+W<-conditional_effects(W_fit_brms, "DICdiffstd", resp = "pHstd", method = "predict", resolution = 1000, conditions = conditions)
+WR6<-Cdata %>%  ## conditional effects is cutting off some data do doing this the long way
+  data_grid(DICdiffstd = seq_range(Cdata$DICdiffstd,2000), logSGDstd = median(Cdata$logSGDstd))%>%
+  add_predicted_draws(W_fit_brms, resp = "pHstd", n = 2000, re_formula = NULL,
+                      allow_new_levels = TRUE) %>%
+  mutate(.prediction = .prediction*attr(Cdata$pHstd,"scaled:scale")+attr(Cdata$pHstd,"scaled:center"),
          DICdiff = DICdiffstd*attr(Cdata$DICdiffstd,"scaled:scale")+attr(Cdata$DICdiffstd,"scaled:center")
   )%>%
-  ggplot()+
-  geom_line(aes(x = DICdiff, y = estimate), lwd = 2, color = 'blue')+
-  geom_ribbon(aes(x = DICdiff,ymin=lower, ymax=upper), linetype=1.5, alpha=0.1, fill = "blue")+
+  median_qi(.width = c(.95)) %>%
+  ggplot(aes(x = DICdiff, y = .prediction)) +
+  geom_line(aes(y = .prediction), lwd = 2, color = 'blue')+
+  geom_ribbon(aes(x = DICdiff,ymin=.prediction.lower, ymax=.prediction.upper), linetype=1.5, alpha=0.1, fill = "blue")+
+  #stat_lineribbon(aes(y = .prediction), lwd = 2,.width = c(.95), alpha = 0.1, color = 'blue', fill = "blue") +
   geom_point(data = Cdata, aes(x = DICdiff, y = pH), alpha = 0.1) +
   xlab(expression(paste("Net Ecosystem Production ( ", Delta, "DIC ", mu,"mol kg"^-1, ")")))+
   ylab(expression("pH"[t]))+
   theme_minimal()
 
 W<-conditional_effects(W_fit_brms, "pHstd", resp = "TAdiffstd", method = "predict", resolution = 1000)
-WR7<-W$TAdiffstd.TAdiffstd_pHstd%>%
-  mutate(estimate = estimate__*attr(Cdata$TAdiffstd,"scaled:scale")+attr(Cdata$TAdiffstd,"scaled:center"),
-         lower = lower__*attr(Cdata$TAdiffstd,"scaled:scale")+attr(Cdata$TAdiffstd,"scaled:center"),
-         upper = upper__*attr(Cdata$TAdiffstd,"scaled:scale")+attr(Cdata$TAdiffstd,"scaled:center"),
+WR7<-Cdata %>% 
+  data_grid(pHstd = seq_range(Cdata$pHstd,2000), Tempinstd = median(Cdata$Tempinstd))%>%
+  add_predicted_draws(W_fit_brms, resp = "TAdiffstd", n = 2000, re_formula = NULL,
+                      allow_new_levels = TRUE) %>%
+  mutate(.prediction = .prediction*attr(Cdata$TAdiffstd,"scaled:scale")+attr(Cdata$TAdiffstd,"scaled:center"),
          pH = pHstd*attr(Cdata$pHstd,"scaled:scale")+attr(Cdata$pHstd,"scaled:center")
   )%>%
-  ggplot()+
-  geom_line(aes(x = pH, y = estimate), lwd = 2, color = 'blue')+
-  geom_ribbon(aes(x = pH,ymin=lower, ymax=upper), linetype=1.5, alpha=0.1, fill = "blue")+
+  median_qi(.width = c(.95)) %>%
+  ggplot(aes(x = pH, y = .prediction)) +
+  geom_line(aes(y = .prediction), lwd = 2, color = 'blue')+
+  geom_ribbon(aes(x = pH,ymin=.prediction.lower, ymax=.prediction.upper), linetype=1.5, alpha=0.1, fill = "blue")+
   geom_point(data = Cdata, aes(x = pH, y = TAdiff), alpha = 0.1) +
-  xlab(expression("pH"[t]))+
   ylab(expression(paste("Net Ecosystem Calcification ( ", Delta, "TA ", mu,"mol kg"^-1, ")")))+
+  xlab(expression("pH"[t]))+
   theme_minimal()
 
 W<-conditional_effects(W_fit_brms, "Tempinstd", resp = "TAdiffstd", method = "predict", resolution = 1000)
@@ -745,19 +756,29 @@ Wpost <- posterior_samples(W_fit_brms)
 
 # plot the coefficients
 WCof1<-Wpost %>% 
-  select(starts_with("b"),-ends_with("Intercept")) %>% 
+  select(starts_with("b"),-ends_with("Intercept")) %>%
   gather() %>% 
-  ggplot(aes(x = value, y = reorder(key, value))) +  # note how we used `reorder()` to arrange the coefficients
-  geom_vline(xintercept = 0, color = "firebrick4", alpha = 1/10) +
-  stat_pointintervalh(point_interval = mode_hdi, .width = .95, 
-                      size = 3/4, color = "firebrick4") +
-  labs(title = "Coefficients",
+  group_by(key)%>%
+  median_hdci()%>%
+  mutate(sig = ifelse(sign(.lower)==sign(.upper),'yes','no'))%>%# if not significant make it grey
+  separate(col = key,into = c("b", "dependent", "independent"),sep = "_")%>% #loose the b and bring the values back together
+  mutate(key = paste(dependent, independent))%>%
+  ggplot(aes(x = value, y = reorder(key, value), color = sig)) +  # note how we used `reorder()` to arrange the coefficients
+  geom_vline(xintercept = 0, alpha = 1/10, color = 'firebrick4') +
+  geom_point()+
+  geom_errorbarh(aes(xmin = .lower, xmax = .upper), height = 0)+
+  scale_color_manual(values = c("grey","firebrick4"))+
+  # stat_pointintervalh(point_interval = mode_hdi, .width = .95, 
+  #                     size = 3/4, color = "firebrick4") +
+  labs(title = "Wailupe",
        x = NULL, y = NULL) +
   theme_bw() +
   theme(panel.grid   = element_blank(),
         panel.grid.major.y = element_line(color = alpha("firebrick4", 1/4), linetype = 3),
         axis.text.y  = element_text(hjust = 0),
-        axis.ticks.y = element_blank())
+        axis.ticks.y = element_blank(),
+        legend.position = "none")
+
 
 # plot the intercepts
 WCof2<-Wpost %>% 
@@ -794,6 +815,10 @@ WCof3<-Wpost %>%
 WCof1+WCof2+WCof3+
   plot_annotation(title = 'Standardized coefficients for Wailupe', tag_levels = "A")+
   ggsave("Output/coefficientsWailupe.png", width = 10, height = 7)
+
+## Plot of BP and Wailupe coefficients together
+Cof1/WCof1+plot_annotation(tag_levels = "A")+
+  ggsave("Output/coefficientsBoth.png", width = 10, height = 10)
 
 # pull out the estimates and set it up to join with the DAG
 # Westimates<-data.frame(fixef(W_fit_brms)) %>%
