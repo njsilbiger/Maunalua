@@ -468,8 +468,8 @@ InteractionsSGD<-post %>%
 ### Make a DAG ####
   bigger_dag <- dagify(TAdiffstd ~ pHstd+ Tempinstd+ Tempinstd2,
                        pHstd ~ DICdiffstd + logSGDstd,
-                       DICdiffstd ~ logNNstd + Tempinstd +logNNstd2 + Tempinstd2,
                        Tempinstd ~ logSGDstd,
+                       DICdiffstd ~ logNNstd + Tempinstd +logNNstd2 + Tempinstd2,
                        logNNstd ~ logSGDstd,
                        exposure = "logSGDstd",
                        outcome = "TAdiffstd",
@@ -501,6 +501,22 @@ InteractionsSGD<-post %>%
            edge_alpha = ifelse(sign(Q2.5)==sign(Q97.5),1,0.1)# make non-significant transparent
            ) 
 
+  ## Basic DAG
+  DAGdata %>% 
+    filter(DayNight %in% c("Both", "Day"), Season %in% c("Both", "Spring"))%>%
+    ggplot(aes(x = x, y = y, xend = xend, yend = yend)) +
+    geom_dag_edges(
+                       #edge_colour = 'grey'
+                       #edge_linetype = edge_lines,
+                       #edge_alpha = edge_alpha)
+                       ) +
+    geom_dag_node() +
+    geom_dag_text_repel(aes(label = label))+
+    theme_dag() +
+    ggsave(filename = 'Output/BasicDAG.pdf', width = 6, height = 6)
+    #ggtitle('Spring Daytime')+
+    #theme(plot.title = element_text(hjust = 0.5))
+  
   #Day Spring DAG
   DaySpring_DAG<-DAGdata %>% 
     filter(DayNight %in% c("Both", "Day"), Season %in% c("Both", "Spring"))%>%
@@ -818,7 +834,7 @@ WCof1+WCof2+WCof3+
 
 ## Plot of BP and Wailupe coefficients together
 Cof1/WCof1+plot_annotation(tag_levels = "A")+
-  ggsave("Output/coefficientsBoth.png", width = 10, height = 10)
+  ggsave("Output/coefficientsBoth.pdf", width = 10, height = 10)
 
 # pull out the estimates and set it up to join with the DAG
 # Westimates<-data.frame(fixef(W_fit_brms)) %>%
