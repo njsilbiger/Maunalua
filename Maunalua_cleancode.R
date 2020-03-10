@@ -223,7 +223,7 @@ R1<-R$logNNstd.logNNstd_logSGDstd %>% # back transform the scaled effects for th
   ggplot()+ # back trasform the log transformed data for better visual
   geom_line(aes(x = exp(logSGD), y = exp(estimate)), lwd = 2, color = 'blue')+
   geom_ribbon(aes(x = exp(logSGD),ymin=exp(lower), ymax=exp(upper)), linetype=1.5, alpha=0.1, fill = "blue")+
-  geom_point(data = Cdata, aes(x = percentsgd, y = NN), alpha = 0.1) +
+  geom_point(data = Cdata[Cdata$Site=='BP',], aes(x = percentsgd, y = NN), alpha = 0.1) +
   xlab("Percent SGD")+
   ylab(expression(paste("Nitrate + Nitrite (mmol L"^-1,")")))+
   coord_trans(x="log", y="log")+
@@ -241,7 +241,7 @@ R2<-R$Tempinstd.Tempinstd_logSGDstd%>%
   ggplot()+
   geom_line(aes(x = exp(logSGD), y = estimate, color = DayNight), lwd = 2)+
   geom_ribbon(aes(x = exp(logSGD),ymin=lower, ymax=upper, fill = DayNight), linetype=1.5, alpha=0.1)+
-  geom_point(data = Cdata, aes(x = percentsgd, y = Tempin, color = DayNight), alpha = 0.1) +
+  geom_point(data = Cdata[Cdata$Site=='BP',], aes(x = percentsgd, y = Tempin, color = DayNight), alpha = 0.1) +
   xlab("Percent SGD")+
   ylab(expression(paste("Temperature (", degree, "C)")))+
   coord_trans(x="log")+
@@ -259,7 +259,7 @@ R3<-R$pHstd.pHstd_logSGDstd %>%
   ggplot()+
   geom_line(aes(x = exp(logSGD), y = estimate), lwd = 2, color = 'blue')+
   geom_ribbon(aes(x = exp(logSGD),ymin=lower, ymax=upper), linetype=1.5, alpha=0.1, fill = "blue")+
-  geom_point(data = Cdata, aes(x = percentsgd, y = pH), alpha = 0.1) +
+  geom_point(data = Cdata[Cdata$Site=='BP',], aes(x = percentsgd, y = pH), alpha = 0.1) +
   xlab("Percent SGD")+
   ylab(expression("pH"[t]))+
   coord_trans(x="log")+
@@ -276,7 +276,7 @@ R4<-R$`DICdiffstd.DICdiffstd_logNNstd:DayNight`%>%
   ggplot()+
   geom_line(aes(x = exp(logNN), y = estimate, group = DayNight, color = DayNight), lwd = 2)+
   geom_ribbon(aes(x = exp(logNN),ymin=lower, ymax=upper, group = DayNight, fill = DayNight), linetype=1.5, alpha=0.1)+
-  geom_point(data = Cdata, aes(x = NN, y = DICdiff, color = DayNight), alpha = 0.1) +
+  geom_point(data = Cdata[Cdata$Site=='BP',], aes(x = NN, y = DICdiff, color = DayNight), alpha = 0.1) +
   xlab(expression(paste("Nitrate + Nitrite (mmol L"^-1,")")))+
   ylab(expression(paste("Net Ecosystem Production ( ", Delta, "DIC ", mu,"mol kg"^-1, ")")))+
   coord_trans(x="log")+
@@ -293,7 +293,7 @@ R5<-R$`DICdiffstd.DICdiffstd_Tempinstd:DayNight`%>%
   ggplot()+
   geom_line(aes(x = Tempin, y = estimate, group = DayNight, color = DayNight), lwd = 2)+
   geom_ribbon(aes(x = Tempin,ymin=lower, ymax=upper, group = DayNight, fill = DayNight), linetype=1.5, alpha=0.1)+
-  geom_point(data = Cdata, aes(x = Tempin, y = DICdiff, color = DayNight), alpha = 0.1) +
+  geom_point(data = Cdata[Cdata$Site=='BP',], aes(x = Tempin, y = DICdiff, color = DayNight), alpha = 0.1) +
   xlab(expression(paste("Temperature (", degree, "C)")))+
   ylab(expression(paste("Net Ecosystem Production ( ", Delta, "DIC ", mu,"mol kg"^-1, ")")))+
   theme_minimal()
@@ -308,7 +308,7 @@ R6<-R$pHstd.pHstd_DICdiffstd%>%
   ggplot()+
   geom_line(aes(x = DICdiff, y = estimate), lwd = 2, color = 'blue')+
   geom_ribbon(aes(x = DICdiff,ymin=lower, ymax=upper), linetype=1.5, alpha=0.1, fill = "blue")+
-  geom_point(data = Cdata, aes(x = DICdiff, y = pH), alpha = 0.1) +
+  geom_point(data = Cdata[Cdata$Site=='BP',], aes(x = DICdiff, y = pH), alpha = 0.1) +
   xlab(expression(paste("Net Ecosystem Production ( ", Delta, "DIC ", mu,"mol kg"^-1, ")")))+
   ylab(expression("pH"[t]))+
   theme_minimal()
@@ -323,7 +323,7 @@ R7<-R$TAdiffstd.TAdiffstd_pHstd%>%
   ggplot()+
   geom_line(aes(x = pH, y = estimate), lwd = 2, color = 'blue')+
   geom_ribbon(aes(x = pH,ymin=lower, ymax=upper), linetype=1.5, alpha=0.1, fill = "blue")+
-  geom_point(data = Cdata, aes(x = pH, y = TAdiff), alpha = 0.1) +
+  geom_point(data = Cdata[Cdata$Site=='BP',], aes(x = pH, y = TAdiff), alpha = 0.1) +
   xlab(expression("pH"[t]))+
   ylab(expression(paste("Net Ecosystem Calcification ( ", Delta, "TA ", mu,"mol kg"^-1, ")")))+
   theme_minimal()
@@ -338,7 +338,7 @@ R8<-R$TAdiffstd.TAdiffstd_Tempinstd%>%
   ggplot()+
   geom_line(aes(x = Tempin, y = estimate), lwd = 2, color = "blue")+
   geom_ribbon(aes(x = Tempin,ymin=lower, ymax=upper),fill = "blue", linetype=1.5, alpha=0.1)+
-  geom_point(data = Cdata, aes(x = Tempin, y = TAdiff), alpha = 0.1) +
+  geom_point(data = Cdata[Cdata$Site=='BP',], aes(x = Tempin, y = TAdiff), alpha = 0.1) +
   xlab(expression(paste("Temperature (", degree, "C)")))+
   ylab(expression(paste("Net Ecosystem Calcification", " (",Delta, "TA ", mu,"mol kg"^-1, ")")))+
   theme_minimal()
@@ -633,7 +633,7 @@ WR1<-W$logNNstd.logNNstd_logSGDstd %>% # back transform the scaled effects for t
   ggplot()+ # back trasform the log transformed data for better visual
   geom_line(aes(x = exp(logSGD), y = exp(estimate)), lwd = 2, color = 'blue')+
   geom_ribbon(aes(x = exp(logSGD),ymin=exp(lower), ymax=exp(upper)), linetype=1.5, alpha=0.1, fill = "blue")+
-  geom_point(data = Cdata, aes(x = percentsgd, y = NN), alpha = 0.1) +
+  geom_point(data = Cdata[Cdata$Site=='W',], aes(x = percentsgd, y = NN), alpha = 0.1) +
   xlab("Percent SGD")+
   ylab(expression(paste("Nitrate + Nitrite (mmol L"^-1,")")))+
   coord_trans(x="log", y="log")+
@@ -652,7 +652,7 @@ WR2<-W$Tempinstd.Tempinstd_logSGDstd%>%
   ggplot()+
   geom_line(aes(x = exp(logSGD), y = estimate, color = DayNight), lwd = 2)+
   geom_ribbon(aes(x = exp(logSGD),ymin=lower, ymax=upper, fill = DayNight), linetype=1.5, alpha=0.1)+
-  geom_point(data = Cdata, aes(x = percentsgd, y = Tempin, color = DayNight), alpha = 0.1) +
+  geom_point(data = Cdata[Cdata$Site=='W',], aes(x = percentsgd, y = Tempin, color = DayNight), alpha = 0.1) +
   xlab("Percent SGD")+
   ylab(expression(paste("Temperature (", degree, "C)")))+
   coord_trans(x="log")+
@@ -671,7 +671,7 @@ WR3<-W$pHstd.pHstd_logSGDstd %>%
   ggplot()+
   geom_line(aes(x = exp(logSGD), y = estimate), lwd = 2, color = 'blue')+
   geom_ribbon(aes(x = exp(logSGD),ymin=lower, ymax=upper), linetype=1.5, alpha=0.1, fill = "blue")+
-  geom_point(data = Cdata, aes(x = percentsgd, y = pH), alpha = 0.1) +
+  geom_point(data = Cdata[Cdata$Site=='W',], aes(x = percentsgd, y = pH), alpha = 0.1) +
   xlab("Percent SGD")+
   ylab(expression("pH"[t]))+
   coord_trans(x="log")+
@@ -688,7 +688,7 @@ WR4<-W$`DICdiffstd.DICdiffstd_logNNstd:DayNight`%>%
   ggplot()+
   geom_line(aes(x = exp(logNN), y = estimate, group = DayNight, color = DayNight), lwd = 2)+
   geom_ribbon(aes(x = exp(logNN),ymin=lower, ymax=upper, group = DayNight, fill = DayNight), linetype=1.5, alpha=0.1)+
-  geom_point(data = Cdata, aes(x = NN, y = DICdiff, color = DayNight), alpha = 0.1) +
+  geom_point(data = Cdata[Cdata$Site=='W',], aes(x = NN, y = DICdiff, color = DayNight), alpha = 0.1) +
   xlab(expression(paste("Nitrate + Nitrite (mmol L"^-1,")")))+
   ylab(expression(paste("Net Ecosystem Production ( ", Delta, "DIC ", mu,"mol kg"^-1, ")")))+
   coord_trans(x="log")+
@@ -706,7 +706,7 @@ WR5<-W$`DICdiffstd.DICdiffstd_Tempinstd:DayNight`%>%
   ggplot()+
   geom_line(aes(x = Tempin, y = estimate, group = DayNight, color = DayNight), lwd = 2)+
   geom_ribbon(aes(x = Tempin,ymin=lower, ymax=upper, group = DayNight, fill = DayNight), linetype=1.5, alpha=0.1)+
-  geom_point(data = Cdata, aes(x = Tempin, y = DICdiff, color = DayNight), alpha = 0.1) +
+  geom_point(data = Cdata[Cdata$Site=='W',], aes(x = Tempin, y = DICdiff, color = DayNight), alpha = 0.1) +
   xlab(expression(paste("Temperature (", degree, "C)")))+
   ylab(expression(paste("Net Ecosystem Production ( ", Delta, "DIC ", mu,"mol kg"^-1, ")")))+
   theme_minimal()
@@ -725,7 +725,7 @@ WR6<-Cdata %>%  ## conditional effects is cutting off some data do doing this th
   geom_line(aes(y = .prediction), lwd = 2, color = 'blue')+
   geom_ribbon(aes(x = DICdiff,ymin=.prediction.lower, ymax=.prediction.upper), linetype=1.5, alpha=0.1, fill = "blue")+
   #stat_lineribbon(aes(y = .prediction), lwd = 2,.width = c(.95), alpha = 0.1, color = 'blue', fill = "blue") +
-  geom_point(data = Cdata, aes(x = DICdiff, y = pH), alpha = 0.1) +
+  geom_point(data = Cdata[Cdata$Site=='W',], aes(x = DICdiff, y = pH), alpha = 0.1) +
   xlab(expression(paste("Net Ecosystem Production ( ", Delta, "DIC ", mu,"mol kg"^-1, ")")))+
   ylab(expression("pH"[t]))+
   theme_minimal()
@@ -742,7 +742,7 @@ WR7<-Cdata %>%
   ggplot(aes(x = pH, y = .prediction)) +
   geom_line(aes(y = .prediction), lwd = 2, color = 'blue')+
   geom_ribbon(aes(x = pH,ymin=.prediction.lower, ymax=.prediction.upper), linetype=1.5, alpha=0.1, fill = "blue")+
-  geom_point(data = Cdata, aes(x = pH, y = TAdiff), alpha = 0.1) +
+  geom_point(data = Cdata[Cdata$Site=='W',], aes(x = pH, y = TAdiff), alpha = 0.1) +
   ylab(expression(paste("Net Ecosystem Calcification ( ", Delta, "TA ", mu,"mol kg"^-1, ")")))+
   xlab(expression("pH"[t]))+
   theme_minimal()
@@ -757,7 +757,7 @@ WR8<-W$TAdiffstd.TAdiffstd_Tempinstd%>%
   ggplot()+
   geom_line(aes(x = Tempin, y = estimate), lwd = 2, color = "blue")+
   geom_ribbon(aes(x = Tempin,ymin=lower, ymax=upper),fill = "blue", linetype=1.5, alpha=0.1)+
-  geom_point(data = Cdata, aes(x = Tempin, y = TAdiff), alpha = 0.1) +
+  geom_point(data = Cdata[Cdata$Site=='W',], aes(x = Tempin, y = TAdiff), alpha = 0.1) +
   xlab(expression(paste("Temperature (", degree, "C)")))+
   ylab(expression(paste("Net Ecosystem Calcification", " (",Delta, "TA ", mu,"mol kg"^-1, ")")))+
   theme_minimal()
