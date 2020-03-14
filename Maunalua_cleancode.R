@@ -74,50 +74,82 @@ HOT.TA.Fall<-2320
 
 #
 #TA
-BP.modelspring<-lm(c(BP.end.TA,Hot.TA)~c(BP.end.Sal,Hot.Sal))
-W.modelspring<-lm(c(W.end.TA,Hot.TA)~c(W.end.Sal,Hot.Sal))
-BP.modelFall<-lm(c(BP.end.TA,HOT.TA.Fall)~c(BP.end.Sal,Hot.Sal.Fall))
-W.modelFall<-lm(c(W.end.TA,HOT.TA.Fall)~c(W.end.Sal,Hot.Sal.Fall))
+# BP.modelspring<-lm(c(BP.end.TA,Hot.TA)~c(BP.end.Sal,Hot.Sal))
+# W.modelspring<-lm(c(W.end.TA,Hot.TA)~c(W.end.Sal,Hot.Sal))
+# BP.modelFall<-lm(c(BP.end.TA,HOT.TA.Fall)~c(BP.end.Sal,Hot.Sal.Fall))
+# W.modelFall<-lm(c(W.end.TA,HOT.TA.Fall)~c(W.end.Sal,Hot.Sal.Fall))
 
-#DIC
-BP.model.DICspring<-lm(c(BP.end.DIC,Hot.DIC)~c(BP.end.Sal,Hot.Sal))
-W.model.DICspring<-lm(c(W.end.DIC,Hot.DIC)~c(W.end.Sal,Hot.Sal))
-BP.model.DICFall<-lm(c(BP.end.DIC,Hot.DIC.Fall)~c(BP.end.Sal,Hot.Sal.Fall))
-W.model.DICFall<-lm(c(W.end.DIC,Hot.DIC.Fall)~c(W.end.Sal,Hot.Sal.Fall))
+# #DIC
+# BP.model.DICspring<-lm(c(BP.end.DIC,Hot.DIC)~c(BP.end.Sal,Hot.Sal))
+# W.model.DICspring<-lm(c(W.end.DIC,Hot.DIC)~c(W.end.Sal,Hot.Sal))
+# BP.model.DICFall<-lm(c(BP.end.DIC,Hot.DIC.Fall)~c(BP.end.Sal,Hot.Sal.Fall))
+# W.model.DICFall<-lm(c(W.end.DIC,Hot.DIC.Fall)~c(W.end.Sal,Hot.Sal.Fall))
 
+
+
+# Cdata %>%
+#   group_by(Site, Season)%>% # first calculate the mean values by site and season
+#   summarise(Sal.mix = mean(Salinity, na.rm=TRUE),
+#             TA.mix = mean(TA, na.rm=TRUE),
+#             Si.mix = mean(Silicate, na.rm = TRUE)) %>%
+#   left_join(Cdata) # join it with the original dataset
 
 #predicted TA based on mixing line
-#Spring
+## use cristina's methods  C1 = Cmix + (Cmix – Csgd)(((Smix – 35.2)/(Ssgd – Smix))  
 Cdata<-Cdata %>% # calculate predicted data from mixing line based on salinity for each site and season
- #TA
-  mutate(TA.pred = case_when(Site == 'BP' & Season =='SPRING' ~ Salinity*BP.modelspring$coefficients[2]+BP.modelspring$coefficients[1],
-                                Site == 'BP' & Season =='FALL' ~ Salinity*BP.modelFall$coefficients[2]+BP.modelFall$coefficients[1],
-                                Site == 'W' & Season =='SPRING' ~ Salinity*W.modelspring$coefficients[2]+W.modelspring$coefficients[1],
-                                Site == 'W' & Season =='FALL' ~ Salinity*W.modelspring$coefficients[2]+W.modelspring$coefficients[1]))%>%
-#DIC
-  mutate(DIC.pred = case_when(Site == 'BP' & Season =='SPRING' ~ Salinity*BP.model.DICspring$coefficients[2]+BP.model.DICspring$coefficients[1],
-                             Site == 'BP' & Season =='FALL' ~ Salinity*BP.model.DICFall$coefficients[2]+BP.model.DICFall$coefficients[1],
-                             Site == 'W' & Season =='SPRING' ~ Salinity*W.model.DICspring$coefficients[2]+W.model.DICspring$coefficients[1],
-                             Site == 'W' & Season =='FALL' ~ Salinity*W.model.DICFall$coefficients[2]+W.model.DICFall$coefficients[1]))%>%
+  #TA
+  mutate(TA.pred = case_when(Site == 'BP'~ TA+(TA - BP.end.TA)*((Salinity - 35.2)/(BP.end.Sal - Salinity)),
+                             Site == 'W' ~ TA+(TA - W.end.TA)*((Salinity - 35.2)/(W.end.Sal - Salinity))))%>%
+  #DIC
+  mutate(DIC.pred = case_when(Site == 'BP'~ DIC+(DIC - BP.end.DIC)*((Salinity - 35.2)/(BP.end.Sal - Salinity)),
+                             Site == 'W' ~ DIC+(DIC - W.end.DIC)*((Salinity - 35.2)/(W.end.Sal - Salinity))))%>%
   #differences
-  mutate(TA.diff = TA.pred - TA, #positive values are calcification and negative are dissolution
-         DIC.diff = DIC.pred - DIC) #positive values are net photosynthesis and negative are respiration
+  mutate(TA.diff = (Hot.TA-TA.pred)/2, #positive values are calcification and negative are dissolution
+         DIC.diff = Hot.DIC - DIC) #positive values are net photosynthesis and negative are respiration
 
+Cdata<-Cdata %>% # calculate predicted data from mixing line based on salinity for each site and season
+  #TA
+  mutate(TA.pred = case_when(Site == 'BP'~ TA+(TA - BP.end.TA)*((Silicate - Hot.Si)/(BP.end.Si - Silicate)),
+                             Site == 'W' ~ TA+(TA - W.end.TA)*((Silicate - Hot.Si)/(W.end.Si - Silicate))))%>%
+  #DIC
+  mutate(DIC.pred = case_when(Site == 'BP'~ DIC+(DIC - BP.end.DIC)*((Silicate - Hot.Si)/(BP.end.Si - Silicate)),
+                              Site == 'W' ~ DIC+(DIC - W.end.DIC)*((Silicate - Hot.Si)/(W.end.Si - Silicate))))%>%
+  #differences
+  mutate(TA.diff = (Hot.TA-TA.pred)/2, #positive values are calcification and negative are dissolution
+         DIC.diff = Hot.DIC - DIC) #positive values are net photosynthesis and negative are respiration
 
+#Spring
+# Cdata<-Cdata %>% # calculate predicted data from mixing line based on salinity for each site and season
+#  #TA
+#   mutate(TA.pred = case_when(Site == 'BP' & Season =='SPRING' ~ Salinity*BP.modelspring$coefficients[2]+BP.modelspring$coefficients[1],
+#                                 Site == 'BP' & Season =='FALL' ~ Salinity*BP.modelFall$coefficients[2]+BP.modelFall$coefficients[1],
+#                                 Site == 'W' & Season =='SPRING' ~ Salinity*W.modelspring$coefficients[2]+W.modelspring$coefficients[1],
+#                                 Site == 'W' & Season =='FALL' ~ Salinity*W.modelspring$coefficients[2]+W.modelspring$coefficients[1]))%>%
+# #DIC
+#   mutate(DIC.pred = case_when(Site == 'BP' & Season =='SPRING' ~ Salinity*BP.model.DICspring$coefficients[2]+BP.model.DICspring$coefficients[1],
+#                              Site == 'BP' & Season =='FALL' ~ Salinity*BP.model.DICFall$coefficients[2]+BP.model.DICFall$coefficients[1],
+#                              Site == 'W' & Season =='SPRING' ~ Salinity*W.model.DICspring$coefficients[2]+W.model.DICspring$coefficients[1],
+#                              Site == 'W' & Season =='FALL' ~ Salinity*W.model.DICFall$coefficients[2]+W.model.DICFall$coefficients[1]))%>%
+#   #differences
+#   mutate(TA.diff = TA.pred - TA, #positive values are calcification and negative are dissolution
+#          DIC.diff = DIC.pred - DIC) #positive values are net photosynthesis and negative are respiration
+# 
+# 
 
 
 #### plot raw data and mixing line
 
 ggplot(Cdata, aes(group = Site))+
-  geom_point(aes(x = Salinity, y = TA, color = Day_Night))+
-  geom_line(aes(x=Salinity, y = TA.pred), col = 'blue')+
+  geom_point(aes(x = Salinity, y = TA.pred, color = Day_Night))+ 
+  coord_trans(x="log", y="log")+
+  #geom_line(aes(x=Salinity, y = TA.pred), col = 'blue')+
   ggtitle('Total Alkalinity')+
   facet_wrap(~Site*Season)
 
 
 ggplot(Cdata, aes(group = Site))+
-  geom_point(aes(x = Salinity, y = DIC, color = Day_Night))+
-  geom_line(aes(x=Salinity, y = DIC.pred), col = 'blue')+
+  geom_point(aes(x = Salinity, y = DIC.pred, color = Day_Night))+
+ # geom_line(aes(x=Salinity, y = DIC.pred), col = 'blue')+
   ggtitle('Dissolved Inorganic Carbon')+
   facet_wrap(~Site*Season)
 
@@ -140,7 +172,7 @@ Cdata<-Cdata %>%
 # Hypothesis: High SGD (low salinity/high silicate) increases N uptake of producers, which increases production (delta DIC), which increases pH
 
 Cdata <- Cdata %>%
-  filter(TA.diff < 300) %>% # remove outlier
+  filter(TA.diff < 150 & TA.diff > -10) %>% # remove outlier
   mutate(log_NN = log(NN),
          log_PO = log(Phosphate),
          log_SGD = log(percent_sgd),
@@ -166,8 +198,11 @@ NN_mod<-bf(logNNstd ~ logSGDstd) # NN ~ SGD which can change by site
 Temp_mod<-bf(Tempinstd ~ DayNight*logSGDstd*Season) ## SGD has cooler water and the intercept changes with season
 #PO_mod<-bf(logPOstd ~ logSGDstd) # PO ~ SGD which can change by site
 DIC_mod <- bf(DICdiffstd ~ DayNight*(poly(logNNstd,2)+poly(Tempinstd,2))) # DIC ~ nutrients and temperature, which can change by day/night (i.e. high nutrients could lead to high P during the day and high R at night what have opposite signs). It is also non-linear
+#DIC_mod <- bf(DICdiffstd ~ logNNstd*Tempinstd) # DIC ~ nutrients and temperature, which can change by day/night (i.e. high nutrients could lead to high P during the day and high R at night what have opposite signs). It is also non-linear
+
 pH_mod <- bf(pHstd ~ DICdiffstd + logSGDstd) # pH ~ NEP + SGD
 TA_mod<-bf(TAdiffstd ~ pHstd+poly(Tempinstd,2)) # NEC ~ pH and temperature, which can change by Tide, because low has more nutrients it may distrupt this relationship (based on Silbiger et al. 2018)
+#TA_mod<-bf(TAdiffstd ~ pHstd+Tempinstd +(1|Season)) # NEC ~ pH and temperature, which can change by Tide, because low has more nutrients it may distrupt this relationship (based on Silbiger et al. 2018)
 
 
 # Run the model first for Black Point
