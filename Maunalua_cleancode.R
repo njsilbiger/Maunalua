@@ -197,11 +197,16 @@ colnames(Cdata)<-str_replace_all(colnames(Cdata), "[^[:alnum:]]", "")
 NN_mod<-bf(logNNstd ~ logSGDstd) # NN ~ SGD which can change by site
 Temp_mod<-bf(Tempinstd ~ DayNight*logSGDstd*Season) ## SGD has cooler water and the intercept changes with season
 #PO_mod<-bf(logPOstd ~ logSGDstd) # PO ~ SGD which can change by site
-DIC_mod <- bf(DICdiffstd ~ DayNight*(poly(logNNstd,2)+poly(Tempinstd,2))) # DIC ~ nutrients and temperature, which can change by day/night (i.e. high nutrients could lead to high P during the day and high R at night what have opposite signs). It is also non-linear
+DIC_mod <- bf(DICdiffstd ~ (DayNight*poly(logNNstd,2))+(Season*Tempinstd)) # DIC ~ nutrients and temperature, which can change by day/night (i.e. high nutrients could lead to high P during the day and high R at night what have opposite signs). It is also non-linear
+#DIC_mod <- bf(DICdiffstd ~ DayNight*(poly(logNNstd,2)+poly(Tempinstd,2))) # DIC ~ nutrients and temperature, which can change by day/night (i.e. high nutrients could lead to high P during the day and high R at night what have opposite signs). It is also non-linear
+
 #DIC_mod <- bf(DICdiffstd ~ logNNstd*Tempinstd) # DIC ~ nutrients and temperature, which can change by day/night (i.e. high nutrients could lead to high P during the day and high R at night what have opposite signs). It is also non-linear
 
 pH_mod <- bf(pHstd ~ DICdiffstd + logSGDstd) # pH ~ NEP + SGD
-TA_mod<-bf(TAdiffstd ~ pHstd+poly(Tempinstd,2)) # NEC ~ pH and temperature, which can change by Tide, because low has more nutrients it may distrupt this relationship (based on Silbiger et al. 2018)
+TA_mod<-bf(TAdiffstd ~ pHstd+Tempinstd) # NEC ~ pH and temperature, which can change by Tide, because low has more nutrients it may distrupt this relationship (based on Silbiger et al. 2018)
+#TA_mod<-bf(TAdiffstd ~ pHstd+poly(Tempinstd,2)) # NEC ~ pH and temperature, which can change by Tide, because low has more nutrients it may distrupt this relationship (based on Silbiger et al. 2018)
+
+
 #TA_mod<-bf(TAdiffstd ~ pHstd+Tempinstd +(1|Season)) # NEC ~ pH and temperature, which can change by Tide, because low has more nutrients it may distrupt this relationship (based on Silbiger et al. 2018)
 
 
@@ -301,7 +306,7 @@ R3<-R$pHstd.pHstd_logSGDstd %>%
   scale_x_continuous(breaks = c(0,1,5,10,25))+
   theme_minimal()
 
-R<-conditional_effects(k_fit_brms, "logNNstd:DayNight", resp = "DICdiffstd", conditions = conditions, method = "predict", resolution = 1000)
+R<-conditional_effects(k_fit_brms, "logNNstd:DayNight", resp = "DICdiffstd", method = "predict", resolution = 1000)
 R4<-R$`DICdiffstd.DICdiffstd_logNNstd:DayNight`%>%
   mutate(estimate = estimate__*attr(Cdata$DICdiffstd,"scaled:scale")+attr(Cdata$DICdiffstd,"scaled:center"),
          lower = lower__*attr(Cdata$DICdiffstd,"scaled:scale")+attr(Cdata$DICdiffstd,"scaled:center"),
@@ -318,19 +323,35 @@ R4<-R$`DICdiffstd.DICdiffstd_logNNstd:DayNight`%>%
   scale_x_continuous(breaks = c(0,0.1,1,5,10,30))+
   theme_minimal()
 
-R<-conditional_effects(k_fit_brms, "Tempinstd:DayNight", resp = "DICdiffstd", conditions = conditions, method = "predict", resolution = 1000)
-R5<-R$`DICdiffstd.DICdiffstd_Tempinstd:DayNight`%>%
+# R<-conditional_effects(k_fit_brms, "Tempinstd:DayNight", resp = "DICdiffstd", conditions = conditions, method = "predict", resolution = 1000)
+# R5<-R$`DICdiffstd.DICdiffstd_Tempinstd:DayNight`%>%
+#   mutate(estimate = estimate__*attr(Cdata$DICdiffstd,"scaled:scale")+attr(Cdata$DICdiffstd,"scaled:center"),
+#          lower = lower__*attr(Cdata$DICdiffstd,"scaled:scale")+attr(Cdata$DICdiffstd,"scaled:center"),
+#          upper = upper__*attr(Cdata$DICdiffstd,"scaled:scale")+attr(Cdata$DICdiffstd,"scaled:center"),
+#          Tempin = Tempinstd*attr(Cdata$Tempinstd,"scaled:scale")+attr(Cdata$Tempinstd,"scaled:center")
+#   )%>%
+#   ggplot()+
+#   geom_line(aes(x = Tempin, y = estimate, group = DayNight, color = DayNight), lwd = 2)+
+#   geom_ribbon(aes(x = Tempin,ymin=lower, ymax=upper, group = DayNight, fill = DayNight), linetype=1.5, alpha=0.1)+
+#   geom_point(data = Cdata[Cdata$Site=='BP',], aes(x = Tempin, y = DICdiff, color = DayNight), alpha = 0.1) +
+#   xlab(expression(paste("Temperature (", degree, "C)")))+
+#   ylab(expression(paste("Net Ecosystem Production ( ", Delta, "DIC ", mu,"mol kg"^-1, ")")))+
+#   theme_minimal()
+
+R<-conditional_effects(k_fit_brms, "Tempinstd:Season", resp = "DICdiffstd",  method = "predict", resolution = 1000)
+R5<-R$`DICdiffstd.DICdiffstd_Tempinstd:Season`%>%
   mutate(estimate = estimate__*attr(Cdata$DICdiffstd,"scaled:scale")+attr(Cdata$DICdiffstd,"scaled:center"),
          lower = lower__*attr(Cdata$DICdiffstd,"scaled:scale")+attr(Cdata$DICdiffstd,"scaled:center"),
          upper = upper__*attr(Cdata$DICdiffstd,"scaled:scale")+attr(Cdata$DICdiffstd,"scaled:center"),
          Tempin = Tempinstd*attr(Cdata$Tempinstd,"scaled:scale")+attr(Cdata$Tempinstd,"scaled:center")
   )%>%
   ggplot()+
-  geom_line(aes(x = Tempin, y = estimate, group = DayNight, color = DayNight), lwd = 2)+
-  geom_ribbon(aes(x = Tempin,ymin=lower, ymax=upper, group = DayNight, fill = DayNight), linetype=1.5, alpha=0.1)+
-  geom_point(data = Cdata[Cdata$Site=='BP',], aes(x = Tempin, y = DICdiff, color = DayNight), alpha = 0.1) +
+  geom_line(aes(x = Tempin, y = estimate, group = Season), lwd = 2, color = "blue")+
+  geom_ribbon(aes(x = Tempin,ymin=lower, ymax=upper, group = Season), linetype=1.5, alpha=0.1, fill = "blue")+
+  geom_point(data = Cdata[Cdata$Site=='BP',], aes(x = Tempin, y = DICdiff), alpha = 0.1, color = "blue") +
   xlab(expression(paste("Temperature (", degree, "C)")))+
   ylab(expression(paste("Net Ecosystem Production ( ", Delta, "DIC ", mu,"mol kg"^-1, ")")))+
+  facet_wrap(~Season)+
   theme_minimal()
 
 R<-conditional_effects(k_fit_brms, "DICdiffstd", resp = "pHstd", method = "predict", resolution = 1000)
@@ -731,21 +752,36 @@ WR4<-W$`DICdiffstd.DICdiffstd_logNNstd:DayNight`%>%
   theme_minimal()
 
 
-W<-conditional_effects(W_fit_brms, "Tempinstd:DayNight", resp = "DICdiffstd", conditions = conditions, method = "predict", resolution = 1000)
-WR5<-W$`DICdiffstd.DICdiffstd_Tempinstd:DayNight`%>%
+# W<-conditional_effects(W_fit_brms, "Tempinstd:DayNight", resp = "DICdiffstd", conditions = conditions, method = "predict", resolution = 1000)
+# WR5<-W$`DICdiffstd.DICdiffstd_Tempinstd:DayNight`%>%
+#   mutate(estimate = estimate__*attr(Cdata$DICdiffstd,"scaled:scale")+attr(Cdata$DICdiffstd,"scaled:center"),
+#          lower = lower__*attr(Cdata$DICdiffstd,"scaled:scale")+attr(Cdata$DICdiffstd,"scaled:center"),
+#          upper = upper__*attr(Cdata$DICdiffstd,"scaled:scale")+attr(Cdata$DICdiffstd,"scaled:center"),
+#          Tempin = Tempinstd*attr(Cdata$Tempinstd,"scaled:scale")+attr(Cdata$Tempinstd,"scaled:center")
+#   )%>%
+#   ggplot()+
+#   geom_line(aes(x = Tempin, y = estimate, group = DayNight, color = DayNight), lwd = 2)+
+#   geom_ribbon(aes(x = Tempin,ymin=lower, ymax=upper, group = DayNight, fill = DayNight), linetype=1.5, alpha=0.1)+
+#   geom_point(data = Cdata[Cdata$Site=='W',], aes(x = Tempin, y = DICdiff, color = DayNight), alpha = 0.1) +
+#   xlab(expression(paste("Temperature (", degree, "C)")))+
+#   ylab(expression(paste("Net Ecosystem Production ( ", Delta, "DIC ", mu,"mol kg"^-1, ")")))+
+#   theme_minimal()
+
+WR<-conditional_effects(W_fit_brms, "Tempinstd:Season", resp = "DICdiffstd",  method = "predict", resolution = 1000)
+WR5<-WR$`DICdiffstd.DICdiffstd_Tempinstd:Season`%>%
   mutate(estimate = estimate__*attr(Cdata$DICdiffstd,"scaled:scale")+attr(Cdata$DICdiffstd,"scaled:center"),
          lower = lower__*attr(Cdata$DICdiffstd,"scaled:scale")+attr(Cdata$DICdiffstd,"scaled:center"),
          upper = upper__*attr(Cdata$DICdiffstd,"scaled:scale")+attr(Cdata$DICdiffstd,"scaled:center"),
          Tempin = Tempinstd*attr(Cdata$Tempinstd,"scaled:scale")+attr(Cdata$Tempinstd,"scaled:center")
   )%>%
   ggplot()+
-  geom_line(aes(x = Tempin, y = estimate, group = DayNight, color = DayNight), lwd = 2)+
-  geom_ribbon(aes(x = Tempin,ymin=lower, ymax=upper, group = DayNight, fill = DayNight), linetype=1.5, alpha=0.1)+
-  geom_point(data = Cdata[Cdata$Site=='W',], aes(x = Tempin, y = DICdiff, color = DayNight), alpha = 0.1) +
+  geom_line(aes(x = Tempin, y = estimate, group = Season), lwd = 2, color = "blue")+
+  geom_ribbon(aes(x = Tempin,ymin=lower, ymax=upper, group = Season), linetype=1.5, alpha=0.1, fill = "blue")+
+  geom_point(data = Cdata[Cdata$Site=='W',], aes(x = Tempin, y = DICdiff), alpha = 0.1, color = "blue") +
   xlab(expression(paste("Temperature (", degree, "C)")))+
   ylab(expression(paste("Net Ecosystem Production ( ", Delta, "DIC ", mu,"mol kg"^-1, ")")))+
+  facet_wrap(~Season)+
   theme_minimal()
-
 
 W<-conditional_effects(W_fit_brms, "DICdiffstd", resp = "pHstd", method = "predict", resolution = 1000, conditions = conditions)
 WR6<-Cdata %>%  ## conditional effects is cutting off some data do doing this the long way
