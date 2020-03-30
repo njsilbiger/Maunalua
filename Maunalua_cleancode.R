@@ -25,6 +25,12 @@ Cdata<-read.csv('chemicaldata_maunalua.csv')
 #remove rows with NAs
 Cdata<-Cdata[complete.cases(Cdata),]
 
+# load bulk dissolution data
+flow<-read.csv('Maunalua_data_flow.csv')
+
+#join with Cdata
+Cdata<-left_join(Cdata,flow)
+
 #calculate rest of carbonate params
 CO2<-carb(flag=8, Cdata$pH, Cdata$TA/1000000, S=Cdata$Salinity, T=Cdata$Temp_in, Patm=1, P=Cdata$Phosphate/1000000, Pt=0, Sit=0,
           k1k2="x", kf="x", ks="d", pHscale="T", b="u74", gas="potential")
@@ -481,10 +487,12 @@ InteractionsDIC<-post %>%
             logNNstd_Day = `b_DICdiffstd_polylogNNstd21`,
             logNNstd2_Night    = `b_DICdiffstd_polylogNNstd22` + `b_DICdiffstd_DayNightNight:polylogNNstd22`,
             logNNstd2_Day = `b_DICdiffstd_polylogNNstd22`,
-            Tempinstd_Night    = `b_DICdiffstd_polyTempinstd21` + `b_DICdiffstd_DayNightNight:polyTempinstd21`,
-            Tempinstd_Day = `b_DICdiffstd_polyTempinstd21`,
-            Tempinstd2_Night    = `b_DICdiffstd_polyTempinstd22` + `b_DICdiffstd_DayNightNight:polyTempinstd22`,
-            Tempinstd2_Day = `b_DICdiffstd_polyTempinstd22`
+            #Tempinstd_Night    = `b_DICdiffstd_polyTempinstd21` + `b_DICdiffstd_DayNightNight:polyTempinstd21`,
+            #Tempinstd_Day = `b_DICdiffstd_polyTempinstd21`,
+            #Tempinstd2_Night    = `b_DICdiffstd_polyTempinstd22` + `b_DICdiffstd_DayNightNight:polyTempinstd22`,
+            #Tempinstd2_Day = `b_DICdiffstd_polyTempinstd22`
+            Tempin_Both_Spring = `b_DICdiffstd_SeasonSPRING:Tempinstd` +`b_DICdiffstd_Tempinstd`,
+            Tempin_Both_Fall = `b_DICdiffstd_Tempinstd`
           ) %>%
   gather(key, value) %>%
   group_by(key) %>%
