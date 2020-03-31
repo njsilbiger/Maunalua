@@ -1052,11 +1052,11 @@ DAGPlot_W<- (WDaySpring_DAG +WNightSpring_DAG)/(WDayFall_DAG +WNightFall_DAG)+
 Cdata %>%
   select(Site, NN, pH, percentsgd,Salinity, Silicate,Tempin, DICdiff, TAdiff) %>%
   group_by(Site)%>%
-  summarise_all(.funs = list(~min(.), ~max(.))) %>%
-  pivot_longer(names_to = "Parameters", cols = "NN_min":"TAdiff_max") %>%
+  summarise_all(.funs = list(~min(.), ~max(.), ~mean(.))) %>%
+  pivot_longer(names_to = "Parameters", cols = "NN_min":"TAdiff_mean") %>%
   arrange(desc(Parameters)) %>%
   pivot_wider(names_from = Site) %>%
-  separate(Parameters, into = c("Parameters", "min_max")) %>%
+  separate(Parameters, into = c("Parameters", "stat")) %>%
   write.csv(file = "SummaryTables/ranges.csv", row.names = FALSE)
 
 
