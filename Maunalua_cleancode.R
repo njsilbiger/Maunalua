@@ -1048,3 +1048,30 @@ DAGPlot_W<- (WDaySpring_DAG +WNightSpring_DAG)/(WDayFall_DAG +WNightFall_DAG)+
   plot_annotation(tag_levels = "A",title = "Wailupe")+
   ggsave("Output/DAGplotsW.pdf", width = 12, height = 13, useDingbats = FALSE)
 
+######################## Make some summary tables #############
+Cdata %>%
+  select(Site, NN, pH, percentsgd,Salinity, Silicate,Tempin, DICdiff, TAdiff) %>%
+  group_by(Site)%>%
+  summarise_all(.funs = list(~min(.), ~max(.))) %>%
+  pivot_longer(names_to = "Parameters", cols = "NN_min":"TAdiff_max") %>%
+  arrange(desc(Parameters)) %>%
+  pivot_wider(names_from = Site) %>%
+  separate(Parameters, into = c("Parameters", "min_max")) %>%
+  write.csv(file = "SummaryTables/ranges.csv", row.names = FALSE)
+
+
+
+BPparams<-fixef(k_fit_brms) %>%
+  as.data.frame() %>%
+  rownames_to_column()%>%
+  as_tibble() %>%
+  rename_at(.vars = 2:5, paste0, "_BP") 
+
+Wparams<-fixef(W_fit_brms) %>%
+  as.data.frame() %>%
+  rownames_to_column()%>%
+  as_tibble() %>%
+  rename_at(.vars = 2:5, paste0, "_W") 
+
+params <-left_join(BPparams, Wparams)%>%
+  write.csv(file = "SummaryTables/param_estimates.csv", row.names = FALSE)
