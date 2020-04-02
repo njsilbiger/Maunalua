@@ -203,7 +203,7 @@ colnames(Cdata)<-str_replace_all(colnames(Cdata), "[^[:alnum:]]", "")
 NN_mod<-bf(logNNstd ~ logSGDstd) # NN ~ SGD which can change by site
 Temp_mod<-bf(Tempinstd ~ DayNight*logSGDstd*Season) ## SGD has cooler water and the intercept changes with season
 #PO_mod<-bf(logPOstd ~ logSGDstd) # PO ~ SGD which can change by site
-DIC_mod <- bf(DICdiffstd ~ (DayNight*poly(logNNstd,2))+(Season*Tempinstd)) # DIC ~ nutrients and temperature, which can change by day/night (i.e. high nutrients could lead to high P during the day and high R at night what have opposite signs). It is also non-linear
+DIC_mod <- bf(DICdiffstd ~ (Tide*DayNight*logNNstd)+(Season*Tempinstd)) # DIC ~ nutrients and temperature, which can change by day/night (i.e. high nutrients could lead to high P during the day and high R at night what have opposite signs). It is also non-linear
 #DIC_mod <- bf(DICdiffstd ~ DayNight*(poly(logNNstd,2)+poly(Tempinstd,2))) # DIC ~ nutrients and temperature, which can change by day/night (i.e. high nutrients could lead to high P during the day and high R at night what have opposite signs). It is also non-linear
 
 #DIC_mod <- bf(DICdiffstd ~ logNNstd*Tempinstd) # DIC ~ nutrients and temperature, which can change by day/night (i.e. high nutrients could lead to high P during the day and high R at night what have opposite signs). It is also non-linear
@@ -312,7 +312,9 @@ R3<-R$pHstd.pHstd_logSGDstd %>%
   scale_x_continuous(breaks = c(0,1,5,10,25))+
   theme_minimal()
 
-R<-conditional_effects(k_fit_brms, "logNNstd:DayNight", resp = "DICdiffstd", method = "predict", resolution = 1000)
+conditions <- make_conditions(k_fit_brms, "Tide") # for the three way interaction
+
+R<-conditional_effects(k_fit_brms, "logNNstd:DayNight",conditions = conditions,  resp = "DICdiffstd", method = "predict", resolution = 1000)
 R4<-R$`DICdiffstd.DICdiffstd_logNNstd:DayNight`%>%
   mutate(estimate = estimate__*attr(Cdata$DICdiffstd,"scaled:scale")+attr(Cdata$DICdiffstd,"scaled:center"),
          lower = lower__*attr(Cdata$DICdiffstd,"scaled:scale")+attr(Cdata$DICdiffstd,"scaled:center"),
@@ -328,6 +330,8 @@ R4<-R$`DICdiffstd.DICdiffstd_logNNstd:DayNight`%>%
   coord_trans(x="log")+
   scale_x_continuous(breaks = c(0,0.1,1,5,10,30))+
   theme_minimal()
+
+conditions <- make_conditions(k_fit_brms, "Season") # for the three way interaction
 
 # R<-conditional_effects(k_fit_brms, "Tempinstd:DayNight", resp = "DICdiffstd", conditions = conditions, method = "predict", resolution = 1000)
 # R5<-R$`DICdiffstd.DICdiffstd_Tempinstd:DayNight`%>%
