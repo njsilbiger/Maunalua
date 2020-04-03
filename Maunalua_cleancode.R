@@ -203,7 +203,7 @@ colnames(Cdata)<-str_replace_all(colnames(Cdata), "[^[:alnum:]]", "")
 NN_mod<-bf(logNNstd ~ logSGDstd) # NN ~ SGD which can change by site
 Temp_mod<-bf(Tempinstd ~ DayNight*logSGDstd*Season) ## SGD has cooler water and the intercept changes with season
 #PO_mod<-bf(logPOstd ~ logSGDstd) # PO ~ SGD which can change by site
-DIC_mod <- bf(DICdiffstd ~ (Tide*DayNight*logNNstd)+(Season*Tempinstd)) # DIC ~ nutrients and temperature, which can change by day/night (i.e. high nutrients could lead to high P during the day and high R at night what have opposite signs). It is also non-linear
+DIC_mod <- bf(DICdiffstd ~ (Tide*DayNight*logNNstd*Season +Tempinstd)) # DIC ~ nutrients and temperature, which can change by day/night (i.e. high nutrients could lead to high P during the day and high R at night what have opposite signs). It is also non-linear
 #DIC_mod <- bf(DICdiffstd ~ DayNight*(poly(logNNstd,2)+poly(Tempinstd,2))) # DIC ~ nutrients and temperature, which can change by day/night (i.e. high nutrients could lead to high P during the day and high R at night what have opposite signs). It is also non-linear
 
 #DIC_mod <- bf(DICdiffstd ~ logNNstd*Tempinstd) # DIC ~ nutrients and temperature, which can change by day/night (i.e. high nutrients could lead to high P during the day and high R at night what have opposite signs). It is also non-linear
@@ -312,7 +312,7 @@ R3<-R$pHstd.pHstd_logSGDstd %>%
   scale_x_continuous(breaks = c(0,1,5,10,25))+
   theme_minimal()
 
-conditions <- make_conditions(k_fit_brms, "Tide") # for the three way interaction
+conditions <- make_conditions(k_fit_brms, c("Tide","Season")) # for the three way interaction
 
 R<-conditional_effects(k_fit_brms, "logNNstd:DayNight",conditions = conditions,  resp = "DICdiffstd", method = "predict", resolution = 1000)
 R4<-R$`DICdiffstd.DICdiffstd_logNNstd:DayNight`%>%
@@ -328,8 +328,9 @@ R4<-R$`DICdiffstd.DICdiffstd_logNNstd:DayNight`%>%
   xlab(expression(paste("Nitrate + Nitrite (mmol L"^-1,")")))+
   ylab(expression(paste("Net Ecosystem Production ( ", Delta, "DIC ", mu,"mol kg"^-1, ")")))+
   coord_trans(x="log")+
-  scale_x_continuous(breaks = c(0,0.1,1,5,10,30))+
-  theme_minimal()
+  scale_x_continuous(breaks = c(0,0.1,1,5,30))+
+  theme_minimal()+
+  facet_wrap(~Tide*Season)
 
 conditions <- make_conditions(k_fit_brms, "Season") # for the three way interaction
 
@@ -752,8 +753,10 @@ WR3<-W$pHstd.pHstd_logSGDstd %>%
   scale_x_continuous(breaks = c(0,1,5,10,25))+
   theme_minimal()
 
-W<-conditional_effects(W_fit_brms, "logNNstd:DayNight", resp = "DICdiffstd", method = "predict", resolution = 1000)
-WR4<-W$`DICdiffstd.DICdiffstd_logNNstd:DayNight`%>%
+conditions <- make_conditions(k_fit_brms, c("Tide","Season")) # for the three way interaction
+
+WR<-conditional_effects(k_fit_brms, "logNNstd:DayNight",conditions = conditions,  resp = "DICdiffstd", method = "predict", resolution = 1000)
+WR4<-WR$`DICdiffstd.DICdiffstd_logNNstd:DayNight`%>%
   mutate(estimate = estimate__*attr(Cdata$DICdiffstd,"scaled:scale")+attr(Cdata$DICdiffstd,"scaled:center"),
          lower = lower__*attr(Cdata$DICdiffstd,"scaled:scale")+attr(Cdata$DICdiffstd,"scaled:center"),
          upper = upper__*attr(Cdata$DICdiffstd,"scaled:scale")+attr(Cdata$DICdiffstd,"scaled:center"),
@@ -762,12 +765,31 @@ WR4<-W$`DICdiffstd.DICdiffstd_logNNstd:DayNight`%>%
   ggplot()+
   geom_line(aes(x = exp(logNN), y = estimate, group = DayNight, color = DayNight), lwd = 2)+
   geom_ribbon(aes(x = exp(logNN),ymin=lower, ymax=upper, group = DayNight, fill = DayNight), linetype=1.5, alpha=0.1)+
-  geom_point(data = Cdata[Cdata$Site=='W',], aes(x = NN, y = DICdiff, color = DayNight), alpha = 0.1) +
+  geom_point(data = Cdata[Cdata$Site=='BP',], aes(x = NN, y = DICdiff, color = DayNight), alpha = 0.1) +
   xlab(expression(paste("Nitrate + Nitrite (mmol L"^-1,")")))+
   ylab(expression(paste("Net Ecosystem Production ( ", Delta, "DIC ", mu,"mol kg"^-1, ")")))+
   coord_trans(x="log")+
-  scale_x_continuous(breaks = c(0,0.1,1,5,10,30))+
-  theme_minimal()
+  scale_x_continuous(breaks = c(0,0.1,1,5,30))+
+  theme_minimal()+
+  facet_wrap(~Tide*Season)
+
+conditions <- make_conditions(k_fit_brms, "Season") # for the three way interaction
+# W<-conditional_effects(W_fit_brms, "logNNstd:DayNight", resp = "DICdiffstd", method = "predict", resolution = 1000)
+# WR4<-W$`DICdiffstd.DICdiffstd_logNNstd:DayNight`%>%
+#   mutate(estimate = estimate__*attr(Cdata$DICdiffstd,"scaled:scale")+attr(Cdata$DICdiffstd,"scaled:center"),
+#          lower = lower__*attr(Cdata$DICdiffstd,"scaled:scale")+attr(Cdata$DICdiffstd,"scaled:center"),
+#          upper = upper__*attr(Cdata$DICdiffstd,"scaled:scale")+attr(Cdata$DICdiffstd,"scaled:center"),
+#          logNN = logNNstd*attr(Cdata$logNNstd,"scaled:scale")+attr(Cdata$logNNstd,"scaled:center")
+#   )%>%
+#   ggplot()+
+#   geom_line(aes(x = exp(logNN), y = estimate, group = DayNight, color = DayNight), lwd = 2)+
+#   geom_ribbon(aes(x = exp(logNN),ymin=lower, ymax=upper, group = DayNight, fill = DayNight), linetype=1.5, alpha=0.1)+
+#   geom_point(data = Cdata[Cdata$Site=='W',], aes(x = NN, y = DICdiff, color = DayNight), alpha = 0.1) +
+#   xlab(expression(paste("Nitrate + Nitrite (mmol L"^-1,")")))+
+#   ylab(expression(paste("Net Ecosystem Production ( ", Delta, "DIC ", mu,"mol kg"^-1, ")")))+
+#   coord_trans(x="log")+
+#   scale_x_continuous(breaks = c(0,0.1,1,5,10,30))+
+#   theme_minimal()
 
 
 # W<-conditional_effects(W_fit_brms, "Tempinstd:DayNight", resp = "DICdiffstd", conditions = conditions, method = "predict", resolution = 1000)
