@@ -480,11 +480,19 @@ Cof1+Cof2+Cof3+
   ggsave("Output/coefficients_BlackPoint.png", width = 10, height = 7)
 
 # pull out the estimates and set it up to join with the DAG
-estimates<-data.frame(fixef(k_fit_brms)) %>%
+estimates1<-data.frame(fixef(k_fit_brms)) %>%
   rownames_to_column(var = "name")%>%
   separate(name, into = c("to","name"), sep = "_") %>%
   select(name, to, 3:6) %>%
   filter(name != 'Intercept', to != 'DICdiffstd', to !="Tempinstd") # remove the intercepts and interaction terms (Calculated below) for the DAG
+
+## pull out temp to DIC
+estimates<-data.frame(fixef(k_fit_brms)) %>%
+  rownames_to_column(var = "name")%>%
+  separate(name, into = c("to","name"), sep = "_") %>%
+  select(name, to, 3:6) %>%
+  filter(to == 'DICdiffstd', name =="Tempinstd")%>% # remove the intercepts and interaction terms (Calculated below) for the DAG
+  bind_rows(estimates1)
   
 ### deal with interaction terms. First for DIC models
 InteractionsDIC<-post %>%
@@ -546,8 +554,8 @@ InteractionsSGD<-post %>%
   bigger_dag <- dagify(TAdiffstd ~ pHstd+ Tempinstd,
                        pHstd ~ DICdiffstd + logSGDstd,
                        DICdiffstd ~ logNNstd + Tempinstd,
-                       Tempinstd ~ logSGDstd,
                        logNNstd ~ logSGDstd,
+                       Tempinstd ~ logSGDstd,
                        exposure = "logSGDstd",
                        outcome = "TAdiffstd",
                        labels = c("TAdiffstd" = "NEC",
@@ -597,9 +605,9 @@ InteractionsSGD<-post %>%
     #ggtitle('Spring Daytime')+
     #theme(plot.title = element_text(hjust = 0.5))
   
-  #Day Spring DAG
-  DaySpring_DAG<-DAGdata %>% 
-    filter(DayNight %in% c("Both", "Day"), Season %in% c("Both", "Spring"))%>%
+  #Day Spring High DAG
+  DaySpringHigh_DAG<-DAGdata %>% 
+    filter(DayNight %in% c("Both", "Day"), Season %in% c("Both", "Spring"), Tide %in% c("Both","High"))%>%
     ggplot(aes(x = x, y = y, xend = xend, yend = yend)) +
     geom_dag_edges(aes(edge_width = abs(Estimate), 
                        edge_colour = edge_cols, 
@@ -608,13 +616,12 @@ InteractionsSGD<-post %>%
     geom_dag_node() +
     geom_dag_text_repel(aes(label = label))+
     theme_dag() +
-    ggtitle('Spring Daytime')+
+    ggtitle('Spring Daytime High Tide')+
     theme(plot.title = element_text(hjust = 0.5))
                                                                     
-  
-  #Night Spring DAG
-  NightSpring_DAG<-DAGdata %>% 
-    filter(DayNight %in% c("Both", "Night"), Season %in% c("Both", "Spring"))%>%
+  #Day Spring Low DAG
+  DaySpringLow_DAG<-DAGdata %>% 
+    filter(DayNight %in% c("Both", "Day"), Season %in% c("Both", "Spring"), Tide %in% c("Both","Low"))%>%
     ggplot(aes(x = x, y = y, xend = xend, yend = yend)) +
     geom_dag_edges(aes(edge_width = abs(Estimate), 
                        edge_colour = edge_cols, 
@@ -623,12 +630,12 @@ InteractionsSGD<-post %>%
     geom_dag_node() +
     geom_dag_text_repel(aes(label = label))+
     theme_dag() +
-    ggtitle('Spring Nighttime')+
+    ggtitle('Spring Daytime Low Tide')+
     theme(plot.title = element_text(hjust = 0.5))
   
-  #Day Fall DAG
-  DayFall_DAG<-DAGdata %>% 
-    filter(DayNight %in% c("Both", "Day"), Season %in% c("Both", "Fall"))%>%
+  #Night Spring High DAG
+  NightSpringHigh_DAG<-DAGdata %>% 
+    filter(DayNight %in% c("Both", "Night"), Season %in% c("Both", "Spring"), Tide %in% c("Both","High"))%>%
     ggplot(aes(x = x, y = y, xend = xend, yend = yend)) +
     geom_dag_edges(aes(edge_width = abs(Estimate), 
                        edge_colour = edge_cols, 
@@ -637,12 +644,54 @@ InteractionsSGD<-post %>%
     geom_dag_node() +
     geom_dag_text_repel(aes(label = label))+
     theme_dag() +
-    ggtitle('Fall Daytime')+
+    ggtitle('Spring Nighttime High Tide')+
+    theme(plot.title = element_text(hjust = 0.5))
+  
+  #Night Spring Low DAG
+  NightSpringLow_DAG<-DAGdata %>% 
+    filter(DayNight %in% c("Both", "Night"), Season %in% c("Both", "Spring"), Tide %in% c("Both","Low"))%>%
+    ggplot(aes(x = x, y = y, xend = xend, yend = yend)) +
+    geom_dag_edges(aes(edge_width = abs(Estimate), 
+                       edge_colour = edge_cols, 
+                       #edge_linetype = edge_lines,
+                       edge_alpha = edge_alpha)) +
+    geom_dag_node() +
+    geom_dag_text_repel(aes(label = label))+
+    theme_dag() +
+    ggtitle('Spring Nighttime Low Tide')+
+    theme(plot.title = element_text(hjust = 0.5))
+  
+  #Day Fall High DAG
+  DayFallHigh_DAG<-DAGdata %>% 
+    filter(DayNight %in% c("Both", "Day"), Season %in% c("Both", "Fall"),Tide %in% c("Both","High"))%>%
+    ggplot(aes(x = x, y = y, xend = xend, yend = yend)) +
+    geom_dag_edges(aes(edge_width = abs(Estimate), 
+                       edge_colour = edge_cols, 
+                       #edge_linetype = edge_lines,
+                       edge_alpha = edge_alpha)) +
+    geom_dag_node() +
+    geom_dag_text_repel(aes(label = label))+
+    theme_dag() +
+    ggtitle('Fall Daytime High Tide')+
     theme(plot.title = element_text(hjust = 0.5))
 
-  #Night Fall DAG
-  NightFall_DAG<-DAGdata %>% 
-    filter(DayNight %in% c("Both", "Night"), Season %in% c("Both", "Fall"))%>%
+  #Day Fall Low DAG
+  DayFallLow_DAG<-DAGdata %>% 
+    filter(DayNight %in% c("Both", "Day"), Season %in% c("Both", "Fall"),Tide %in% c("Both","Low"))%>%
+    ggplot(aes(x = x, y = y, xend = xend, yend = yend)) +
+    geom_dag_edges(aes(edge_width = abs(Estimate), 
+                       edge_colour = edge_cols, 
+                       #edge_linetype = edge_lines,
+                       edge_alpha = edge_alpha)) +
+    geom_dag_node() +
+    geom_dag_text_repel(aes(label = label))+
+    theme_dag() +
+    ggtitle('Fall Daytime Low Tide')+
+    theme(plot.title = element_text(hjust = 0.5))
+  
+  #Night Fall High DAG
+  NightFallHigh_DAG<-DAGdata %>% 
+    filter(DayNight %in% c("Both", "Night"), Season %in% c("Both", "Fall"), Tide %in% c("Both","High"))%>%
     ggplot(aes(x = x, y = y, xend = xend, yend = yend)) +
      geom_dag_edges(aes(edge_width = abs(Estimate), 
                        edge_colour = edge_cols, 
@@ -651,12 +700,30 @@ InteractionsSGD<-post %>%
     geom_dag_node() +
     geom_dag_text_repel(aes(label = label))+
     theme_dag() +
-    ggtitle('Fall Nighttime')+
+    ggtitle('Fall Nighttime High Tide')+
     theme(plot.title = element_text(hjust = 0.5)) 
   
-  DAGPlot_BP<- (DaySpring_DAG +NightSpring_DAG)/(DayFall_DAG +NightFall_DAG)+
+  #Night Fall High DAG
+  NightFallLow_DAG<-DAGdata %>% 
+    filter(DayNight %in% c("Both", "Night"), Season %in% c("Both", "Fall"), Tide %in% c("Both","Low"))%>%
+    ggplot(aes(x = x, y = y, xend = xend, yend = yend)) +
+    geom_dag_edges(aes(edge_width = abs(Estimate), 
+                       edge_colour = edge_cols, 
+                       #edge_linetype = edge_lines,
+                       edge_alpha = edge_alpha)) +
+    geom_dag_node() +
+    geom_dag_text_repel(aes(label = label))+
+    theme_dag() +
+    ggtitle('Fall Nighttime Low Tide')+
+    theme(plot.title = element_text(hjust = 0.5)) 
+  
+  DAGPlot_BP_High<- (DaySpringHigh_DAG +NightSpringHigh_DAG)/(DayFallHigh_DAG +NightFallHigh_DAG)+
     plot_annotation(tag_levels = "A",title = "Black Point")+
-    ggsave("Output/DAGplotsBP.pdf", width = 12, height = 13, useDingbats = FALSE)
+    ggsave("Output/DAGplotsBP_High.pdf", width = 12, height = 13, useDingbats = FALSE)
+  
+  DAGPlot_BP_Low<- (DaySpringLow_DAG +NightSpringLow_DAG)/(DayFallLow_DAG +NightFallLow_DAG)+
+    plot_annotation(tag_levels = "A",title = "Black Point")+
+    ggsave("Output/DAGplotsBP_Low.pdf", width = 12, height = 13, useDingbats = FALSE)
   
   ###### Run Model for Wailupe (Need to add interaction terms with high and low tide in the model.. so many interactions) ###############
 
