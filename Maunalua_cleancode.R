@@ -78,28 +78,6 @@ HOT.TA.Fall<-2320
 
 #create the regression
 
-#
-#TA
-# BP.modelspring<-lm(c(BP.end.TA,Hot.TA)~c(BP.end.Sal,Hot.Sal))
-# W.modelspring<-lm(c(W.end.TA,Hot.TA)~c(W.end.Sal,Hot.Sal))
-# BP.modelFall<-lm(c(BP.end.TA,HOT.TA.Fall)~c(BP.end.Sal,Hot.Sal.Fall))
-# W.modelFall<-lm(c(W.end.TA,HOT.TA.Fall)~c(W.end.Sal,Hot.Sal.Fall))
-
-# #DIC
-# BP.model.DICspring<-lm(c(BP.end.DIC,Hot.DIC)~c(BP.end.Sal,Hot.Sal))
-# W.model.DICspring<-lm(c(W.end.DIC,Hot.DIC)~c(W.end.Sal,Hot.Sal))
-# BP.model.DICFall<-lm(c(BP.end.DIC,Hot.DIC.Fall)~c(BP.end.Sal,Hot.Sal.Fall))
-# W.model.DICFall<-lm(c(W.end.DIC,Hot.DIC.Fall)~c(W.end.Sal,Hot.Sal.Fall))
-
-
-
-# Cdata %>%
-#   group_by(Site, Season)%>% # first calculate the mean values by site and season
-#   summarise(Sal.mix = mean(Salinity, na.rm=TRUE),
-#             TA.mix = mean(TA, na.rm=TRUE),
-#             Si.mix = mean(Silicate, na.rm = TRUE)) %>%
-#   left_join(Cdata) # join it with the original dataset
-
 #predicted TA based on mixing line
 ## use cristina's methods  C1 = Cmix + (Cmix – Csgd)(((Smix – 35.2)/(Ssgd – Smix))  
 Cdata<-Cdata %>% # calculate predicted data from mixing line based on salinity for each site and season
@@ -124,25 +102,6 @@ Cdata<-Cdata %>% # calculate predicted data from mixing line based on salinity f
   mutate(TA.diff = (Hot.TA-TA.pred)/2, #positive values are calcification and negative are dissolution
          DIC.diff = Hot.DIC - DIC) #positive values are net photosynthesis and negative are respiration
 
-#Spring
-# Cdata<-Cdata %>% # calculate predicted data from mixing line based on salinity for each site and season
-#  #TA
-#   mutate(TA.pred = case_when(Site == 'BP' & Season =='SPRING' ~ Salinity*BP.modelspring$coefficients[2]+BP.modelspring$coefficients[1],
-#                                 Site == 'BP' & Season =='FALL' ~ Salinity*BP.modelFall$coefficients[2]+BP.modelFall$coefficients[1],
-#                                 Site == 'W' & Season =='SPRING' ~ Salinity*W.modelspring$coefficients[2]+W.modelspring$coefficients[1],
-#                                 Site == 'W' & Season =='FALL' ~ Salinity*W.modelspring$coefficients[2]+W.modelspring$coefficients[1]))%>%
-# #DIC
-#   mutate(DIC.pred = case_when(Site == 'BP' & Season =='SPRING' ~ Salinity*BP.model.DICspring$coefficients[2]+BP.model.DICspring$coefficients[1],
-#                              Site == 'BP' & Season =='FALL' ~ Salinity*BP.model.DICFall$coefficients[2]+BP.model.DICFall$coefficients[1],
-#                              Site == 'W' & Season =='SPRING' ~ Salinity*W.model.DICspring$coefficients[2]+W.model.DICspring$coefficients[1],
-#                              Site == 'W' & Season =='FALL' ~ Salinity*W.model.DICFall$coefficients[2]+W.model.DICFall$coefficients[1]))%>%
-#   #differences
-#   mutate(TA.diff = TA.pred - TA, #positive values are calcification and negative are dissolution
-#          DIC.diff = DIC.pred - DIC) #positive values are net photosynthesis and negative are respiration
-# 
-# 
-
-
 #### plot raw data and mixing line
 
 ggplot(Cdata, aes(group = Site))+
@@ -161,8 +120,6 @@ ggplot(Cdata, aes(group = Site))+
 
 
 ####################Anaysis########################### 
-# run anova to for Wailupe
-
 #Make tide just high and low instead of H1, H2, L1, and L2
 Cdata$Tide<-droplevels(Cdata$Tide) #this removes levels that don'e exist anymore (empty spaces for example)
 levels(Cdata$Tide)<-c("H","H","L","L") # this makes H1 and H2 both H and same for L1 and L2
@@ -192,8 +149,8 @@ Cdata<-Cdata %>%
          Season = recode(Season, SPRING = "Spring",
                          FALL = "Fall"))  ## change the factors for prettier names
 # each level is a model
-## SGD drives changes in N and P directly; 
-# N + P + NH4 directly drive changes in DIC diff (net production);
+## SGD drives changes in N  directly; 
+# N  directly drive changes in DIC diff (net production);
 # DIC diff and SGD directly drive changes in pH;
 # pH directly drives changes in TA diff (NEC)
 
@@ -206,17 +163,8 @@ NN_mod<-bf(logNNstd ~ logSGDstd) # NN ~ SGD which can change by site
 Temp_mod<-bf(Tempinstd ~ DayNight*logSGDstd*Season) ## SGD has cooler water and the intercept changes with season
 #PO_mod<-bf(logPOstd ~ logSGDstd) # PO ~ SGD which can change by site
 DIC_mod <- bf(DICdiffstd ~ (Tide*DayNight*logNNstd*Season +Tempinstd)) # DIC ~ nutrients and temperature, which can change by day/night (i.e. high nutrients could lead to high P during the day and high R at night what have opposite signs). It is also non-linear
-#DIC_mod <- bf(DICdiffstd ~ DayNight*(poly(logNNstd,2)+poly(Tempinstd,2))) # DIC ~ nutrients and temperature, which can change by day/night (i.e. high nutrients could lead to high P during the day and high R at night what have opposite signs). It is also non-linear
-
-#DIC_mod <- bf(DICdiffstd ~ logNNstd*Tempinstd) # DIC ~ nutrients and temperature, which can change by day/night (i.e. high nutrients could lead to high P during the day and high R at night what have opposite signs). It is also non-linear
-
 pH_mod <- bf(pHstd ~ DICdiffstd + logSGDstd) # pH ~ NEP + SGD
 TA_mod<-bf(TAdiffstd ~ pHstd+Tempinstd) # NEC ~ pH and temperature, which can change by Tide, because low has more nutrients it may distrupt this relationship (based on Silbiger et al. 2018)
-#TA_mod<-bf(TAdiffstd ~ pHstd+poly(Tempinstd,2)) # NEC ~ pH and temperature, which can change by Tide, because low has more nutrients it may distrupt this relationship (based on Silbiger et al. 2018)
-
-
-#TA_mod<-bf(TAdiffstd ~ pHstd+Tempinstd +(1|Season)) # NEC ~ pH and temperature, which can change by Tide, because low has more nutrients it may distrupt this relationship (based on Silbiger et al. 2018)
-
 
 # Run the model first for Black Point
 k_fit_brms <- brm(TA_mod+
@@ -552,9 +500,7 @@ InteractionsSGD<-post %>%
 #  ggdag(bigger_dag, use_labels = "label", text = FALSE)+
 #    theme_dag()
 
-## STOPPED HERE ###  
-  
-    # join it with the estimates so that I can add colors and line thickness to related to effectsize
+# join it with the estimates so that I can add colors and line thickness to related to effectsize
   DAGdata<-bigger_dag %>%
     dag_paths() %>% #### then left join these with the effect sizes
     as_tibble() %>%
@@ -583,9 +529,7 @@ InteractionsSGD<-post %>%
     geom_dag_text_repel(aes(label = label))+
     theme_dag() +
     ggsave(filename = 'Output/BasicDAG.pdf', width = 6, height = 6)
-    #ggtitle('Spring Daytime')+
-    #theme(plot.title = element_text(hjust = 0.5))
-  
+
   #Day Spring High DAG
   DaySpringHigh_DAG<-DAGdata %>% 
     filter(DayNight %in% c("Both", "Day"), Season %in% c("Both", "Spring"), Tide %in% c("Both","High"))%>%
@@ -748,7 +692,6 @@ Wp5<-pp_check(W_fit_brms, resp="Tempinstd") +
 Wp1+Wp2+Wp3+Wp4+Wp5+plot_layout(guides = "collect") +
   plot_annotation(title = 'Wailupe Posterior Predictive Checks', tag_levels = "A")+
   ggsave("Output/Posteriorchecks_Wailupe.pdf", width = 5, height = 5)
-## NN and PO need some work...
 
 # plot some of the conditional effects
 conditions <- make_conditions(W_fit_brms, "Season")
