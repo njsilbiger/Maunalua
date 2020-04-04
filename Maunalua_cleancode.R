@@ -488,25 +488,27 @@ estimates<-data.frame(fixef(k_fit_brms)) %>%
   
 ### deal with interaction terms. First for DIC models
 InteractionsDIC<-post %>%
-  transmute(logNNstd_Night    = `b_DICdiffstd_polylogNNstd21` + `b_DICdiffstd_DayNightNight:polylogNNstd21`,
-            logNNstd_Day = `b_DICdiffstd_polylogNNstd21`,
-            logNNstd2_Night    = `b_DICdiffstd_polylogNNstd22` + `b_DICdiffstd_DayNightNight:polylogNNstd22`,
-            logNNstd2_Day = `b_DICdiffstd_polylogNNstd22`,
-            #Tempinstd_Night    = `b_DICdiffstd_polyTempinstd21` + `b_DICdiffstd_DayNightNight:polyTempinstd21`,
-            #Tempinstd_Day = `b_DICdiffstd_polyTempinstd21`,
-            #Tempinstd2_Night    = `b_DICdiffstd_polyTempinstd22` + `b_DICdiffstd_DayNightNight:polyTempinstd22`,
-            #Tempinstd2_Day = `b_DICdiffstd_polyTempinstd22`
-            Tempin_Both_Spring = `b_DICdiffstd_SeasonSPRING:Tempinstd` +`b_DICdiffstd_Tempinstd`,
-            Tempin_Both_Fall = `b_DICdiffstd_Tempinstd`
-          ) %>%
+  transmute(logNNstd_Night_Fall_High    = `b_DICdiffstd_logNNstd` + `b_DICdiffstd_DayNightNight:logNNstd`,
+            logNNstd_Day_Fall_High = `b_DICdiffstd_logNNstd`,
+            
+            logNNstd_Night_Fall_Low    = `b_DICdiffstd_logNNstd` + `b_DICdiffstd_DayNightNight:logNNstd` +`b_DICdiffstd_TideLowTide:logNNstd` +`b_DICdiffstd_TideLowTide:DayNightNight:logNNstd`,
+            logNNstd_Day_Fall_Low = `b_DICdiffstd_logNNstd`+`b_DICdiffstd_TideLowTide:logNNstd`,
+            
+            logNNstd_Night_Spring_High    = `b_DICdiffstd_logNNstd` + `b_DICdiffstd_DayNightNight:logNNstd` + `b_DICdiffstd_logNNstd:SeasonSPRING` +`b_DICdiffstd_DayNightNight:logNNstd:SeasonSPRING`,
+            logNNstd_Day_Spring_High = `b_DICdiffstd_logNNstd`+ `b_DICdiffstd_logNNstd:SeasonSPRING`,
+            
+            logNNstd_Night_Spring_Low    = `b_DICdiffstd_logNNstd` + `b_DICdiffstd_DayNightNight:logNNstd` + `b_DICdiffstd_logNNstd:SeasonSPRING`+`b_DICdiffstd_TideLowTide:logNNstd` +`b_DICdiffstd_TideLowTide:DayNightNight:logNNstd:SeasonSPRING`+`b_DICdiffstd_TideLowTide:logNNstd:SeasonSPRING`+`b_DICdiffstd_DayNightNight:logNNstd:SeasonSPRING`+`b_DICdiffstd_TideLowTide:DayNightNight:logNNstd`,
+            logNNstd_Day_Spring_Low = `b_DICdiffstd_logNNstd`+ `b_DICdiffstd_logNNstd:SeasonSPRING`+`b_DICdiffstd_TideLowTide:logNNstd` +`b_DICdiffstd_TideLowTide:logNNstd:SeasonSPRING`
+            
+               ) %>%
   gather(key, value) %>%
   group_by(key) %>%
   summarise(Estimate = mean(value), Est.Error = sd(value),
             Q2.5 = mean(value) - qt(1- 0.05/2, (n() - 1))*sd(value)/sqrt(n()),
             Q97.5 = mean(value) + qt(1- 0.05/2, (n() - 1))*sd(value)/sqrt(n())) %>%
-  separate(key, into = c("name", "DayNight", "Season")) %>%
+  separate(key, into = c("name", "DayNight", "Season", "Tide")) %>%
   mutate(to = "DICdiffstd") %>%
-  select(name,to, 2:7)
+  select(name,to, 2:8)
 
 # Interactions temp SGD
 InteractionsSGD<-post %>%
@@ -515,10 +517,10 @@ InteractionsSGD<-post %>%
             #logSGDstd_Night_Spring = `b_Tempinstd_logSGDstd` +`b_Tempinstd_DayNightNight:logSGDstd:SeasonSPRING` +`b_Tempinstd_DayNightNight`,
             #logSGDstd_Day_Fall = `b_Tempinstd_logSGDstd`,
             #logSGDstd_Night_Fall = `b_Tempinstd_logSGDstd`+`b_Tempinstd_DayNightNight`
-    logSGDstd_Day_Spring = `b_Tempinstd_logSGDstd` +`b_Tempinstd_logSGDstd:SeasonSPRING`,
-    logSGDstd_Night_Spring = `b_Tempinstd_logSGDstd` +`b_Tempinstd_logSGDstd:SeasonSPRING` +`b_Tempinstd_DayNightNight:logSGDstd`+`b_Tempinstd_DayNightNight:logSGDstd:SeasonSPRING`,
-    logSGDstd_Day_Fall = `b_Tempinstd_logSGDstd`,
-    logSGDstd_Night_Fall = `b_Tempinstd_logSGDstd`+`b_Tempinstd_DayNightNight:logSGDstd`
+    logSGDstd_Day_Spring_Both = `b_Tempinstd_logSGDstd` +`b_Tempinstd_logSGDstd:SeasonSPRING`,
+    logSGDstd_Night_Spring_Both = `b_Tempinstd_logSGDstd` +`b_Tempinstd_logSGDstd:SeasonSPRING` +`b_Tempinstd_DayNightNight:logSGDstd`+`b_Tempinstd_DayNightNight:logSGDstd:SeasonSPRING`,
+    logSGDstd_Day_Fall_Both = `b_Tempinstd_logSGDstd`,
+    logSGDstd_Night_Fall_Both = `b_Tempinstd_logSGDstd`+`b_Tempinstd_DayNightNight:logSGDstd`
     
   ) %>%
   gather(key, value) %>%
@@ -526,14 +528,15 @@ InteractionsSGD<-post %>%
   summarise(Estimate = mean(value), Est.Error = sd(value),
             Q2.5 = mean(value) - qt(1- 0.05/2, (n() - 1))*sd(value)/sqrt(n()),
             Q97.5 = mean(value) + qt(1- 0.05/2, (n() - 1))*sd(value)/sqrt(n())) %>%
-  separate(key, into = c("name", "DayNight", "Season")) %>%
+  separate(key, into = c("name", "DayNight", "Season", "Tide")) %>%
   mutate(to = "Tempinstd") %>%
-  select(name,to, 2:7)
+  select(name,to, 2:8)
 
 #Bind everything together
   estimates<-bind_rows(estimates, InteractionsDIC, InteractionsSGD) %>% # bind with the estimates above
   mutate(DayNight = replace_na(DayNight, "Both"),
-         Season = replace_na(Season, "Both"))
+         Season = replace_na(Season, "Both"),
+         Tide = replace_na(Tide, "Both")  )
   # change the "poly names'
  # estimates$name[estimates$name=='polyTempinstd21'] = 'Tempinstd'
 #  estimates$name[estimates$name=='polyTempinstd22'] = 'Tempinstd2'
@@ -542,8 +545,8 @@ InteractionsSGD<-post %>%
 ### Make a DAG ####
   bigger_dag <- dagify(TAdiffstd ~ pHstd+ Tempinstd,
                        pHstd ~ DICdiffstd + logSGDstd,
+                       DICdiffstd ~ logNNstd + Tempinstd,
                        Tempinstd ~ logSGDstd,
-                       DICdiffstd ~ logNNstd +logNNstd2 + Tempinstd,
                        logNNstd ~ logSGDstd,
                        exposure = "logSGDstd",
                        outcome = "TAdiffstd",
@@ -552,22 +555,24 @@ InteractionsSGD<-post %>%
                                   "Tempinstd" = "Temperature",
                                   "logSGDstd" = "Log % SGD",
                                   "DICdiffstd" ="NEP",
-                                  "logNNstd" = "log NN",
-                                  "logNNstd2" = "log NN^2")) %>%
+                                  "logNNstd" = "log NN")) %>%
     tidy_dagitty(layout = "tree", seed = 25)
   
   
   #quick visual
 #  ggdag(bigger_dag, use_labels = "label", text = FALSE)+
 #    theme_dag()
+
+## STOPPED HERE ###  
   
-  # join it with the estimates so that I can add colors and line thickness to related to effectsize
+    # join it with the estimates so that I can add colors and line thickness to related to effectsize
   DAGdata<-bigger_dag %>%
     dag_paths() %>% #### then left join these with the effect sizes
     as_tibble() %>%
     left_join(estimates) %>%
     mutate(DayNight = replace_na(DayNight, "Both"),
-           Season = replace_na(Season, "Both"))%>%
+           Season = replace_na(Season, "Both"),
+           Tide = replace_na(Tide, "Both"))%>%
     mutate(est_sign = as.character(sign(Estimate)))%>% # add a column for pos and negative
     mutate(edge_cols = case_when(est_sign == '-1' ~ "#d6604d",#"#fc8d59", 
                                  est_sign == '1' ~ "#4393c3")) %>%
@@ -578,14 +583,14 @@ InteractionsSGD<-post %>%
   
   ## Basic DAG
   DAGdata %>%
-    filter(DayNight %in% c("Both", "Day"), Season %in% c("Both", "Spring"))%>%
+    filter(DayNight %in% c("Both", "Day"), Season %in% c("Both", "Spring"), Tide %in% c("Both","Low"))%>%
     ggplot(aes(x = x, y = y, xend = xend, yend = yend)) +
-    geom_dag_edges(
-                       #edge_colour = 'grey'
-                       #edge_linetype = edge_lines,
-                       #edge_alpha = edge_alpha)
-                       ) +
     geom_dag_node() +
+    geom_dag_edges(
+      #edge_colour = 'grey'
+      #edge_linetype = edge_lines,
+      #edge_alpha = edge_alpha)
+    ) +
     geom_dag_text_repel(aes(label = label))+
     theme_dag() +
     ggsave(filename = 'Output/BasicDAG.pdf', width = 6, height = 6)
