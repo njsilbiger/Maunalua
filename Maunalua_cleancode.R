@@ -910,7 +910,7 @@ WCof1+WCof2+WCof3+
 
 ## Plot of BP and Wailupe coefficients together
 Cof1/WCof1+plot_annotation(tag_levels = "A")+
-  ggsave("Output/coefficientsBoth.pdf", width = 10, height = 10)
+  ggsave("Output/coefficientsBoth.pdf", width = 10, height = 10, useDingbats = TRUE)
 
 Cof1+Cof2+Cof3+
   plot_annotation(title = 'Standardized coefficients for Black Point', tag_levels = "A")+
