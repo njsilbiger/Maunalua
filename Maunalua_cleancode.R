@@ -247,7 +247,9 @@ R2<-R$Tempinstd.Tempinstd_logSGDstd%>%
   theme_minimal()+
   facet_wrap(~Season)
 
-R<-conditional_effects(k_fit_brms, "logSGDstd", resp = "pHstd", method = "predict", resolution = 1000)
+#conditions <- make_conditions(k_fit_brms, "Tide") # for the three way interaction
+
+R<-conditional_effects(k_fit_brms, "logSGDstd", resp = "pHstd",conditions = conditions, method = "predict", resolution = 1000)
 R3<-R$pHstd.pHstd_logSGDstd %>%
   mutate(estimate = estimate__*attr(Cdata$pHstd,"scaled:scale")+attr(Cdata$pHstd,"scaled:center"),
          lower = lower__*attr(Cdata$pHstd,"scaled:scale")+attr(Cdata$pHstd,"scaled:center"),
@@ -255,9 +257,9 @@ R3<-R$pHstd.pHstd_logSGDstd %>%
          logSGD = logSGDstd*attr(Cdata$logSGDstd,"scaled:scale")+attr(Cdata$logSGDstd,"scaled:center")
   )%>%
   ggplot()+
-  geom_line(aes(x = exp(logSGD), y = estimate), lwd = 2, color = 'blue')+
-  geom_ribbon(aes(x = exp(logSGD),ymin=lower, ymax=upper), linetype=1.5, alpha=0.1, fill = "blue")+
-  geom_point(data = Cdata[Cdata$Site=='BP',], aes(x = percentsgd, y = pH), alpha = 0.1) +
+  geom_line(aes(x = exp(logSGD), y = estimate), color = "blue", lwd = 2)+
+  geom_ribbon(aes(x = exp(logSGD),ymin=lower, ymax=upper), fill = "blue", linetype=1.5, alpha=0.1)+
+  geom_point(data = Cdata[Cdata$Site=='BP',], aes(x = percentsgd, y = pH), color = "blue", alpha = 0.1) +
   xlab("Percent SGD")+
   ylab(expression("pH"[t]))+
   coord_trans(x="log")+
