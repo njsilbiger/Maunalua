@@ -713,7 +713,7 @@ WR1<-W$logNNstd.logNNstd_logSGDstd %>% # back transform the scaled effects for t
   ylab(expression(atop("Nitrate + Nitrite", paste("(mmol L"^-1,")"))))+
   coord_trans(x="log", y="log")+
   scale_x_continuous(breaks = c(0,1,5,10,25))+
-  scale_y_continuous(breaks = c(0,0.1,1,5,10))+
+  scale_y_continuous(breaks = c(0,0.1,1,10))+
   theme_minimal()
 
 
@@ -769,7 +769,7 @@ WR4<-WR$`DICdiffstd.DICdiffstd_logNNstd:DayNight`%>%
   xlab(expression(atop("Nitrate + Nitrite", paste("(mmol L"^-1,")"))))+
   ylab(expression(atop("Net Ecosystem Production", paste("(", Delta, "DIC ", mu,"mol kg"^-1, ")"))))+
   coord_trans(x="log")+
-  scale_x_continuous(breaks = c(0,0.1,1,5,10))+
+  scale_x_continuous(breaks = c(0,0.1,1,10))+
   theme_minimal()+
   facet_wrap(~Tide*Season)
 
