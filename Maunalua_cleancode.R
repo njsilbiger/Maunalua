@@ -713,7 +713,7 @@ WR1<-W$logNNstd.logNNstd_logSGDstd %>% # back transform the scaled effects for t
   ylab(expression(atop("Nitrate + Nitrite", paste("(mmol L"^-1,")"))))+
   coord_trans(x="log", y="log")+
   scale_x_continuous(breaks = c(0,1,5,10,25))+
-  scale_y_continuous(breaks = c(0,0.1,1,5,10,30))+
+  scale_y_continuous(breaks = c(0,0.1,1,5,10))+
   theme_minimal()
 
 
@@ -753,9 +753,9 @@ WR3<-W$pHstd.pHstd_logSGDstd %>%
   scale_x_continuous(breaks = c(0,1,5,10,25))+
   theme_minimal()
 
-conditions <- make_conditions(k_fit_brms, c("Tide","Season")) # for the three way interaction
+conditions <- make_conditions(W_fit_brms, c("Tide","Season")) # for the three way interaction
 
-WR<-conditional_effects(k_fit_brms, "logNNstd:DayNight",conditions = conditions,  resp = "DICdiffstd", method = "predict", resolution = 1000)
+WR<-conditional_effects(W_fit_brms, "logNNstd:DayNight",conditions = conditions,  resp = "DICdiffstd", method = "predict", resolution = 1000)
 WR4<-WR$`DICdiffstd.DICdiffstd_logNNstd:DayNight`%>%
   mutate(estimate = estimate__*attr(Cdata$DICdiffstd,"scaled:scale")+attr(Cdata$DICdiffstd,"scaled:center"),
          lower = lower__*attr(Cdata$DICdiffstd,"scaled:scale")+attr(Cdata$DICdiffstd,"scaled:center"),
@@ -765,15 +765,15 @@ WR4<-WR$`DICdiffstd.DICdiffstd_logNNstd:DayNight`%>%
   ggplot()+
   geom_line(aes(x = exp(logNN), y = estimate, group = DayNight, color = DayNight), lwd = 2)+
   geom_ribbon(aes(x = exp(logNN),ymin=lower, ymax=upper, group = DayNight, fill = DayNight), linetype=1.5, alpha=0.1)+
-  geom_point(data = Cdata[Cdata$Site=='BP',], aes(x = NN, y = DICdiff, color = DayNight), alpha = 0.1) +
+  geom_point(data = Cdata[Cdata$Site=='W',], aes(x = NN, y = DICdiff, color = DayNight), alpha = 0.1) +
   xlab(expression(atop("Nitrate + Nitrite", paste("(mmol L"^-1,")"))))+
   ylab(expression(atop("Net Ecosystem Production", paste("(", Delta, "DIC ", mu,"mol kg"^-1, ")"))))+
   coord_trans(x="log")+
-  scale_x_continuous(breaks = c(0,0.1,1,5,30))+
+  scale_x_continuous(breaks = c(0,0.1,1,5,10))+
   theme_minimal()+
   facet_wrap(~Tide*Season)
 
-conditions <- make_conditions(k_fit_brms, "Season") # for the three way interaction
+conditions <- make_conditions(W_fit_brms, "Season") # for the three way interaction
 WR<-conditional_effects(W_fit_brms, "Tempinstd:Season", resp = "DICdiffstd",  method = "predict", resolution = 1000)
 WR5<-WR$`DICdiffstd.DICdiffstd_Tempinstd:Season`%>%
   mutate(estimate = estimate__*attr(Cdata$DICdiffstd,"scaled:scale")+attr(Cdata$DICdiffstd,"scaled:center"),
