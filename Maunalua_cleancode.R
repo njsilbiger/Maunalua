@@ -80,18 +80,8 @@ HOT.TA.Fall<-2320
 
 #predicted TA based on mixing line
 ## use cristina's methods  C1 = Cmix + (Cmix – Csgd)(((Smix – 35.2)/(Ssgd – Smix))  
-Cdata<-Cdata %>% # calculate predicted data from mixing line based on salinity for each site and season
-  #TA
-  mutate(TA.pred = case_when(Site == 'BP'~ TA+(TA - BP.end.TA)*((Salinity - 35.2)/(BP.end.Sal - Salinity)),
-                             Site == 'W' ~ TA+(TA - W.end.TA)*((Salinity - 35.2)/(W.end.Sal - Salinity))))%>%
-  #DIC
-  mutate(DIC.pred = case_when(Site == 'BP'~ DIC+(DIC - BP.end.DIC)*((Salinity - 35.2)/(BP.end.Sal - Salinity)),
-                             Site == 'W' ~ DIC+(DIC - W.end.DIC)*((Salinity - 35.2)/(W.end.Sal - Salinity))))%>%
-  #differences
-  mutate(TA.diff = (Hot.TA-TA.pred)/2, #positive values are calcification and negative are dissolution
-         DIC.diff = Hot.DIC - DIC) #positive values are net photosynthesis and negative are respiration
 
-Cdata<-Cdata %>% # calculate predicted data from mixing line based on salinity for each site and season
+Cdata<-Cdata %>% # calculate predicted data from mixing line based on silicate for each site and season
   #TA
   mutate(TA.pred = case_when(Site == 'BP'~ TA+(TA - BP.end.TA)*((Silicate - Hot.Si)/(BP.end.Si - Silicate)),
                              Site == 'W' ~ TA+(TA - W.end.TA)*((Silicate - Hot.Si)/(W.end.Si - Silicate))))%>%
