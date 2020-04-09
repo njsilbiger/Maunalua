@@ -88,8 +88,8 @@ Cdata<-Cdata %>% # calculate predicted data from mixing line based on silicate f
   mutate(TA.diff = (Hot.TA-TA.pred)/2, #positive values are calcification and negative are dissolution
          DIC.diff = Hot.DIC - DIC) %>%#positive values are net photosynthesis and negative are respiration
   #Calculate percent SGD (Simix – SiSW)/ (SiGW – SiSW) with Christina's end members (L&O paper)
-  mutate(percent_sgd = case_when(Site == 'BP'~100* (Silicate - 1.03)/(BP.end.Si - 1.03),
-                              Site == 'W' ~ 100* (Silicate - 1.03)/(W.end.Si - 1.03)))
+  mutate(percent_sgd = case_when(Site == 'BP'~0.01 +(100* (Silicate - 1.03)/(BP.end.Si - 1.03)),
+                              Site == 'W' ~ 0.01 +(100* (Silicate - 1.03)/(W.end.Si - 1.03)))) 
   
 
 ####################Anaysis########################### 
@@ -110,7 +110,7 @@ Cdata <- Cdata %>%
   filter(TA.diff < 150 & TA.diff > -10) %>% # remove outlier
   mutate(log_NN = log(NN),
          log_PO = log(Phosphate),
-         log_SGD = log(percent_sgd+0.01),
+         log_SGD = log(percent_sgd),
          log_Salinity = log(Salinity)) %>% # Need to log transform the NN, PO, and SGD data because it is highly left scewed
   mutate_at(.vars = c("pH", "Silicate","DIC.diff","log_SGD","log_NN","Ammonia","log_PO","TA.diff", "Salinity", "log_Salinity", "Temp_in"), .funs = list(std = ~scale(.))) #standardize all the data
 
