@@ -88,8 +88,8 @@ Cdata<-Cdata %>% # calculate predicted data from mixing line based on silicate f
   mutate(TA.diff = (Hot.TA-TA.pred)/2, #positive values are calcification and negative are dissolution
          DIC.diff = Hot.DIC - DIC) %>%#positive values are net photosynthesis and negative are respiration
   #Calculate percent SGD (Simix – SiSW)/ (SiGW – SiSW) with Christina's end members (L&O paper)
-  mutate(percent_sgd = case_when(Site == 'BP'~0.01 +(100* (Silicate - 1.03)/(BP.end.Si - 1.03)),
-                              Site == 'W' ~ 0.01 +(100* (Silicate - 1.03)/(W.end.Si - 1.03)))) 
+  mutate(percent_sgd = case_when(Site == 'BP'~0.1 +(100* (Silicate - 1.03)/(BP.end.Si - 1.03)),
+                              Site == 'W' ~ 0.1 +(100* (Silicate - 1.03)/(W.end.Si - 1.03)))) #added 0.1 because the values will be log transformed
   
 
 ####################Anaysis########################### 
