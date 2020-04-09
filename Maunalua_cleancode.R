@@ -1,6 +1,6 @@
 ## Run Bayesian SEM for Maunalua carbonate chemistry data
 ## By: Nyssa Silbiger
-## Last updated: 4/4/2020
+## Last updated: 4/9/2020
 ########################################################
 #libraries
 library(seacarb)
@@ -25,21 +25,17 @@ Cdata<-read.csv('chemicaldata_maunalua.csv')
 #remove rows with NAs
 Cdata<-Cdata[complete.cases(Cdata),]
 
-# load bulk dissolution data
-#flow<-read.csv('Maunalua_data_flow.csv')
-
-#join with Cdata
-#Cdata<-left_join(Cdata,flow)
-
 #calculate rest of carbonate params
-CO2<-carb(flag=8, Cdata$pH, Cdata$TA/1000000, S=Cdata$Salinity, T=Cdata$Temp_in, Patm=1, P=Cdata$Phosphate/1000000, Pt=0, Sit=0,
+CO2<-carb(flag=8, Cdata$pH, Cdata$TA/1000000, S=Cdata$Salinity, 
+          T=Cdata$Temp_in, Patm=1, P=0, Pt=Cdata$Phosphate/1000000, Sit=Cdata$Silicate/1000000,
           k1k2="x", kf="x", ks="d", pHscale="T", b="u74", gas="potential")
 #TA is divided by 1000 because all calculations are in mol/kg in the seacarb package
+
 # calculate error propogation
 er<-errors(flag=8, Cdata$pH, Cdata$TA/1000000, 
            S=Cdata$Salinity, T=Cdata$Temp_in, 
-           Patm=1, P=Cdata$Phosphate/1000000, 
-           Pt=0, Sit=0,evar1 = 0.01, evar2 = 5e-6) 
+           Patm=1, P=0,Pt=Cdata$Phosphate/1000000,
+           Sit=Cdata$Silicate/1000000,evar1 = 0.01, evar2 = 5e-6) 
       
 #average error for DIC based on pH and TA
 mean(er$DIC*1000000)
@@ -51,7 +47,7 @@ CO2[,c("CO2","HCO3","CO3","DIC","ALK")]<-CO2[,c("CO2","HCO3","CO3","DIC","ALK")]
 Cdata[,c("CO2","HCO3","CO3","DIC","OmegaArag","OmegaCalcite","pCO2","fCO2")]<-
   CO2[,c("CO2","HCO3","CO3","DIC","OmegaAragonite","OmegaCalcite","pCO2","fCO2")]
 
-#endmembers for Christina
+#endmembers from Christina
 #black point
 BP.end.DIC<-3038
 BP.end.TA<-2945
@@ -69,7 +65,6 @@ W.end.NN<-71
 W.end.Si<-810
 
 #hot end point from 05/24/2015
-#Spring
 Hot.Sal<- 35.1961
 Hot.pH<-8.069
 Hot.DIC<-2006.3
@@ -78,14 +73,6 @@ Hot.temp<-24.4490
 Hot.PO<-0.11
 Hot.NN<-0.01
 Hot.Si<-1.17
-
-#Fall (October 14th, 2015)
-Hot.Sal.Fall<-35.2708
-Hot.pH.Fall<-8.077
-Hot.DIC.Fall<-1996.8
-HOT.TA.Fall<-2320
-
-#create the regression
 
 #predicted TA based on mixing line
 ## use cristina's methods  C1 = Cmix + (Cmix – Csgd)(((Smix – 35.2)/(Ssgd – Smix))  
@@ -99,24 +86,11 @@ Cdata<-Cdata %>% # calculate predicted data from mixing line based on silicate f
                               Site == 'W' ~ DIC+(DIC - W.end.DIC)*((Silicate - Hot.Si)/(W.end.Si - Silicate))))%>%
   #differences
   mutate(TA.diff = (Hot.TA-TA.pred)/2, #positive values are calcification and negative are dissolution
-         DIC.diff = Hot.DIC - DIC) #positive values are net photosynthesis and negative are respiration
-
-#### plot raw data and mixing line
-
-ggplot(Cdata, aes(group = Site))+
-  geom_point(aes(x = Salinity, y = TA.pred, color = Day_Night))+ 
-  coord_trans(x="log", y="log")+
-  #geom_line(aes(x=Salinity, y = TA.pred), col = 'blue')+
-  ggtitle('Total Alkalinity')+
-  facet_wrap(~Site*Season)
-
-
-ggplot(Cdata, aes(group = Site))+
-  geom_point(aes(x = Salinity, y = DIC.pred, color = Day_Night))+
- # geom_line(aes(x=Salinity, y = DIC.pred), col = 'blue')+
-  ggtitle('Dissolved Inorganic Carbon')+
-  facet_wrap(~Site*Season)
-
+         DIC.diff = Hot.DIC - DIC) %>%#positive values are net photosynthesis and negative are respiration
+  #Calculate percent SGD (Simix – SiSW)/ (SiGW – SiSW) with Christina's end members (L&O paper)
+  mutate(percent_sgd = case_when(Site == 'BP'~100* (Silicate - 1.03)/(BP.end.Si - 1.03),
+                              Site == 'W' ~ 100* (Silicate - 1.03)/(W.end.Si - 1.03)))
+  
 
 ####################Anaysis########################### 
 #Make tide just high and low instead of H1, H2, L1, and L2
@@ -128,7 +102,6 @@ Cdata<-Cdata %>%
   dplyr::filter(Zone != 'Offshore')%>%
   droplevels()
 
-
 #SEM######################
 # Test the effect of SGD (salinity) on pH which is mediated by N uptake and production rates. 
 # Hypothesis: High SGD (low salinity/high silicate) increases N uptake of producers, which increases production (delta DIC), which increases pH
@@ -137,7 +110,7 @@ Cdata <- Cdata %>%
   filter(TA.diff < 150 & TA.diff > -10) %>% # remove outlier
   mutate(log_NN = log(NN),
          log_PO = log(Phosphate),
-         log_SGD = log(percent_sgd),
+         log_SGD = log(percent_sgd+0.01),
          log_Salinity = log(Salinity)) %>% # Need to log transform the NN, PO, and SGD data because it is highly left scewed
   mutate_at(.vars = c("pH", "Silicate","DIC.diff","log_SGD","log_NN","Ammonia","log_PO","TA.diff", "Salinity", "log_Salinity", "Temp_in"), .funs = list(std = ~scale(.))) #standardize all the data
 
