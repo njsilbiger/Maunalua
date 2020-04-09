@@ -26,15 +26,24 @@ Cdata<-read.csv('chemicaldata_maunalua.csv')
 Cdata<-Cdata[complete.cases(Cdata),]
 
 # load bulk dissolution data
-flow<-read.csv('Maunalua_data_flow.csv')
+#flow<-read.csv('Maunalua_data_flow.csv')
 
 #join with Cdata
-Cdata<-left_join(Cdata,flow)
+#Cdata<-left_join(Cdata,flow)
 
 #calculate rest of carbonate params
 CO2<-carb(flag=8, Cdata$pH, Cdata$TA/1000000, S=Cdata$Salinity, T=Cdata$Temp_in, Patm=1, P=Cdata$Phosphate/1000000, Pt=0, Sit=0,
           k1k2="x", kf="x", ks="d", pHscale="T", b="u74", gas="potential")
 #TA is divided by 1000 because all calculations are in mol/kg in the seacarb package
+# calculate error propogation
+er<-errors(flag=8, Cdata$pH, Cdata$TA/1000000, 
+           S=Cdata$Salinity, T=Cdata$Temp_in, 
+           Patm=1, P=Cdata$Phosphate/1000000, 
+           Pt=0, Sit=0,evar1 = 0.01, evar2 = 5e-6) 
+      
+#average error for DIC based on pH and TA
+mean(er$DIC*1000000)
+sd(er$DIC*1000000)/nrow(er)
 
 #convert CO2, HCO3, CO3, DIC, and Alk back to micromol for easier interpretation
 CO2[,c("CO2","HCO3","CO3","DIC","ALK")]<-CO2[,c("CO2","HCO3","CO3","DIC","ALK")]*1000000
