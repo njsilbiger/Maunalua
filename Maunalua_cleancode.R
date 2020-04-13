@@ -379,7 +379,7 @@ R1+R2+R3+R4+R5+R6+R7+R8+
 
 (R1|R2)/(R3|R6)/(R4|R5)/(R7|R8)+plot_layout(guides = "collect")+
   plot_annotation(tag_levels = "A")+
-  ggsave("test.pdf", width = 11, height = 15)
+  ggsave("test.pdf", width = 11, height = 15, useDingbats = FALSE)
 
 ## get the posterior
 post <- posterior_samples(k_fit_brms)
