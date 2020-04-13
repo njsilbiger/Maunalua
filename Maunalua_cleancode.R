@@ -193,35 +193,37 @@ R1<-R$logNNstd.logNNstd_logSGDstd %>% # back transform the scaled effects for th
   ggplot()+ # back trasform the log transformed data for better visual
   geom_line(aes(x = exp(logSGD), y = exp(estimate)), lwd = 1, color = 'grey')+
   geom_ribbon(aes(x = exp(logSGD),ymin=exp(lower), ymax=exp(upper)), linetype=1.5, alpha=0.3, fill = "grey")+
-  geom_point(data = Cdata[Cdata$Site=='BP',], aes(x = percentsgd, y = NN), color = "grey") +
+  geom_point(data = Cdata[Cdata$Site=='BP',], aes(x = percentsgd, y = NN)) +
   xlab("Percent SGD")+
   ylab(expression(atop("Nitrate + Nitrite", paste("(mmol L"^-1,")"))))+
+#  ggtitle("N+N ~ % SGD")+
   coord_trans(x="log", y="log")+
-  scale_x_continuous(breaks = c(0,1,5,10,25))+
+  scale_x_continuous(breaks = c(0.2,1,5,10,25))+
   scale_y_continuous(breaks = c(0,0.1,1,5,10,30))+
-  theme_minimal()
-
+  theme_minimal()+
+  theme(plot.title = element_text(hjust = 0.5, size = 14), legend.position = 'bottom')
 
 R<-conditional_effects(k_fit_brms, "logSGDstd:DayNight", resp = "Tempinstd",  conditions = conditions,method = "predict", resolution = 1000)
-R2<-R$Tempinstd.Tempinstd_logSGDstd%>%
+R2<-R$`Tempinstd.Tempinstd_logSGDstd:DayNight`%>%
   mutate(estimate = estimate__*attr(Cdata$Tempinstd,"scaled:scale")+attr(Cdata$Tempinstd,"scaled:center"),
          lower = lower__*attr(Cdata$Tempinstd,"scaled:scale")+attr(Cdata$Tempinstd,"scaled:center"),
          upper = upper__*attr(Cdata$Tempinstd,"scaled:scale")+attr(Cdata$Tempinstd,"scaled:center"),
          logSGD = logSGDstd*attr(Cdata$logSGDstd,"scaled:scale")+attr(Cdata$logSGDstd,"scaled:center")
   )%>%
   ggplot()+
-  geom_line(aes(x = exp(logSGD), y = estimate, lty = DayNight), lwd = 1, color = "grey")+
-  geom_ribbon(aes(x = exp(logSGD),ymin=lower, ymax=upper), linetype=1.5, alpha=0.3, fill = "grey")+
-  geom_point(data = Cdata[Cdata$Site=='BP',], aes(x = percentsgd, y = Tempin, shape = DayNight),color = "grey" ) +
+  geom_line(aes(x = exp(logSGD), y = estimate, lty = DayNight, group = DayNight), lwd = 1, color = "grey")+
+  geom_ribbon(aes(x = exp(logSGD),ymin=lower, ymax=upper, group = DayNight), linetype=1.5, alpha=0.3, fill = "grey")+
+  geom_point(data = Cdata[Cdata$Site=='BP',], aes(x = percentsgd, y = Tempin, shape = DayNight) ) +
   xlab("Percent SGD")+
   ylab(expression(atop("Temperature",paste("(", degree, "C)"))))+
- # scale_linetype_manual(values=c(1,2))+
-  scale_shape_manual(values=c(0,15))+
+  scale_shape_manual(values=c(0,15), name = "")+
+  scale_linetype_manual(values = c(1,2),name = "")+
   coord_trans(x="log")+
-  scale_x_continuous(breaks = c(0,1,5,10,25))+
+  scale_x_continuous(breaks = c(0.2,1,5,10,25))+
+ # ggtitle("Temperature ~ % SGD * Day/Night")+
   theme_minimal()+
+  theme(plot.title = element_text(hjust = 0.5, size = 14), legend.position = 'bottom')+
   facet_wrap(~Season)
-
 
 #conditions <- make_conditions(k_fit_brms, "Tide") # for the three way interaction
 
@@ -238,16 +240,43 @@ R3<-R$pHstd.pHstd_logSGDstd %>%
   geom_point(data = Cdata[Cdata$Site=='BP',], aes(x = percentsgd, y = pH, color = DICdiff)) +
   xlab("Percent SGD")+
   ylab(expression("pH"[t]))+
+  ylim(7.8,8.4)+
+  labs(#title = expression(paste('pH ~ ',bold('% SGD'), ' + NEP')),
+       color = "NEP")+
   coord_trans(x="log")+
   scale_color_gradient2(low = "#D8B365",
                          mid = "white",
                          high = "#5AB4AC",
                          midpoint = 0)+
-  scale_x_continuous(breaks = c(0,1,5,10,25))+
-  labs(color = "NEP")+
-  theme_minimal()
+  scale_x_continuous(breaks = c(0.2,1,5,10,25))+
+  theme_minimal()+
+  theme(plot.title = element_text(hjust = 0.5, size = 14), legend.position = 'bottom',
+        legend.box = "horizontal")+
+  guides(colour = guide_colourbar(title.position="top", title.hjust = 0.5))
 
-##STOP HERE
+R<-conditional_effects(k_fit_brms, "DICdiffstd", resp = "pHstd", method = "predict", resolution = 1000)
+R6<-R$pHstd.pHstd_DICdiffstd%>%
+  mutate(estimate = estimate__*attr(Cdata$pHstd,"scaled:scale")+attr(Cdata$pHstd,"scaled:center"),
+         lower = lower__*attr(Cdata$pHstd,"scaled:scale")+attr(Cdata$pHstd,"scaled:center"),
+         upper = upper__*attr(Cdata$pHstd,"scaled:scale")+attr(Cdata$pHstd,"scaled:center"),
+         DICdiff = DICdiffstd*attr(Cdata$DICdiffstd,"scaled:scale")+attr(Cdata$DICdiffstd,"scaled:center")
+  )%>%
+  ggplot()+
+  geom_line(aes(x = DICdiff, y = estimate), lwd = 1, color = 'grey')+
+  geom_ribbon(aes(x = DICdiff,ymin=lower, ymax=upper), linetype=1.5, fill = "grey", alpha = 0.3)+
+  geom_point(data = Cdata[Cdata$Site=='BP',], aes(x = DICdiff, y = pH, color = percentsgd)) +
+  scale_color_gradient(name = "% SGD", trans = "log", breaks =c(0.2,1,5,10))+
+  xlab(expression(atop("Net Ecosystem Production", paste("(", Delta, "DIC ", mu,"mol kg"^-1, ")"))))+
+  ylab(expression("pH"[t]))+
+  ylim(7.8,8.4)+
+#  labs(title = expression(paste('pH ~ % SGD + ', bold('NEP'))))+
+  theme_minimal()+
+  theme(plot.title = element_text(hjust = 0.5, size = 14), legend.position = 'bottom',
+        legend.box = "horizontal")+
+  guides(colour = guide_colourbar(title.position="top", title.hjust = 0.5))
+
+#Bring together the pH models
+#pHplot<-R3+R6&plot_annotation(title = "pH ~ %SGD + NEP")&theme(plot.title = element_text(hjust = 0.5, size = 16))
 
 conditions <- make_conditions(k_fit_brms, c("Tide","Season")) # for the three way interaction
 
@@ -259,48 +288,47 @@ R4<-R$`DICdiffstd.DICdiffstd_logNNstd:DayNight`%>%
          logNN = logNNstd*attr(Cdata$logNNstd,"scaled:scale")+attr(Cdata$logNNstd,"scaled:center")
   )%>%
   ggplot()+
-  geom_line(aes(x = exp(logNN), y = estimate, group = DayNight, color = DayNight), lwd = 2)+
-  geom_ribbon(aes(x = exp(logNN),ymin=lower, ymax=upper, group = DayNight, fill = DayNight), linetype=1.5, alpha=0.1)+
-  geom_point(data = Cdata[Cdata$Site=='BP',], aes(x = NN, y = DICdiff, color = DayNight), alpha = 0.1) +
+  geom_line(aes(x = exp(logNN), y = estimate, group = DayNight, lty = DayNight), lwd = 1, color = "grey")+
+  geom_ribbon(aes(x = exp(logNN),ymin=lower, ymax=upper, group = DayNight), fill = "grey", linetype=1.5, alpha=0.3)+
+  geom_point(data = Cdata[Cdata$Site=='BP',], aes(x = NN, y = DICdiff, shape = DayNight, color = Tempin)) +
   xlab(expression(atop("Nitrate + Nitrite", paste("(mmol L"^-1,")"))))+
   ylab(expression(atop("Net Ecosystem Production", paste("(", Delta, "DIC ", mu,"mol kg"^-1, ")"))))+
   coord_trans(x="log")+
+  scale_shape_manual(values=c(0,15), name = "")+
+  scale_linetype_manual(values = c(1,2),name = "")+
   scale_x_continuous(breaks = c(0,0.1,1,5,30))+
+  scale_color_gradient(low = "blue", high = "red", name = "Temperature")+
+#  labs(title = expression(paste('NEP ~ ', bold('NN*Day/Night*Season '), '+ Temperature')))+
   theme_minimal()+
-  facet_wrap(~Tide*Season)
+  facet_wrap(~Tide*Season)+
+  theme(plot.title = element_text(hjust = 0.5, size = 14), legend.position = 'bottom',
+        legend.box = "horizontal")+
+  guides(colour = guide_colourbar(title.position="top", title.hjust = 0.5))
+
 
 conditions <- make_conditions(k_fit_brms, "Season") # for the three way interaction
 
-R<-conditional_effects(k_fit_brms, "Tempinstd:Season", resp = "DICdiffstd",  method = "predict", resolution = 1000)
-R5<-R$`DICdiffstd.DICdiffstd_Tempinstd:Season`%>%
+R<-conditional_effects(k_fit_brms, "Tempinstd", resp = "DICdiffstd",  method = "predict", resolution = 1000)
+R5<-R$`DICdiffstd.DICdiffstd_Tempinstd`%>%
   mutate(estimate = estimate__*attr(Cdata$DICdiffstd,"scaled:scale")+attr(Cdata$DICdiffstd,"scaled:center"),
          lower = lower__*attr(Cdata$DICdiffstd,"scaled:scale")+attr(Cdata$DICdiffstd,"scaled:center"),
          upper = upper__*attr(Cdata$DICdiffstd,"scaled:scale")+attr(Cdata$DICdiffstd,"scaled:center"),
          Tempin = Tempinstd*attr(Cdata$Tempinstd,"scaled:scale")+attr(Cdata$Tempinstd,"scaled:center")
   )%>%
   ggplot()+
-  geom_line(aes(x = Tempin, y = estimate, group = Season), lwd = 2, color = "blue")+
-  geom_ribbon(aes(x = Tempin,ymin=lower, ymax=upper, group = Season), linetype=1.5, alpha=0.1, fill = "blue")+
-  geom_point(data = Cdata[Cdata$Site=='BP',], aes(x = Tempin, y = DICdiff), alpha = 0.1, color = "blue") +
+  geom_line(aes(x = Tempin, y = estimate, group = Season), lwd = 1, color = "grey")+
+  geom_ribbon(aes(x = Tempin,ymin=lower, ymax=upper, group = Season), linetype=1.5, alpha=0.3, fill = "grey")+
+  geom_point(data = Cdata[Cdata$Site=='BP',], aes(x = Tempin, y = DICdiff, color = NN)) +
   xlab(expression(atop("Temperature",paste("(", degree, "C)"))))+
   ylab(expression(atop("Net Ecosystem Production", paste("(", Delta, "DIC ", mu,"mol kg"^-1, ")"))))+
-  facet_wrap(~Season)+
-  theme_minimal()
+  scale_color_gradient(name = "N+N", trans = "log", breaks =c(0.1,1,5,30), low = "lightgreen", high = "darkgreen")+
+#  labs(title = expression(paste('NEP ~ NN*Day/Night*Season ', bold('+ Temperature'))))+
+  ylim(-200,400)+
+  theme_minimal()+
+  theme(plot.title = element_text(hjust = 0.5, size = 14), legend.position = 'bottom',
+        legend.box = "horizontal")+
+  guides(colour = guide_colourbar(title.position="top", title.hjust = 0.5))
 
-R<-conditional_effects(k_fit_brms, "DICdiffstd", resp = "pHstd", method = "predict", resolution = 1000)
-R6<-R$pHstd.pHstd_DICdiffstd%>%
-  mutate(estimate = estimate__*attr(Cdata$pHstd,"scaled:scale")+attr(Cdata$pHstd,"scaled:center"),
-         lower = lower__*attr(Cdata$pHstd,"scaled:scale")+attr(Cdata$pHstd,"scaled:center"),
-         upper = upper__*attr(Cdata$pHstd,"scaled:scale")+attr(Cdata$pHstd,"scaled:center"),
-         DICdiff = DICdiffstd*attr(Cdata$DICdiffstd,"scaled:scale")+attr(Cdata$DICdiffstd,"scaled:center")
-  )%>%
-  ggplot()+
-  geom_line(aes(x = DICdiff, y = estimate), lwd = 2, color = 'blue')+
-  geom_ribbon(aes(x = DICdiff,ymin=lower, ymax=upper), linetype=1.5, alpha=0.1, fill = "blue")+
-  geom_point(data = Cdata[Cdata$Site=='BP',], aes(x = DICdiff, y = pH), alpha = 0.1) +
-  xlab(expression(atop("Net Ecosystem Production", paste("(", Delta, "DIC ", mu,"mol kg"^-1, ")"))))+
-  ylab(expression("pH"[t]))+
-  theme_minimal()
 
 R<-conditional_effects(k_fit_brms, "pHstd", resp = "TAdiffstd", method = "predict", resolution = 1000)
 R7<-R$TAdiffstd.TAdiffstd_pHstd%>%
@@ -310,12 +338,18 @@ R7<-R$TAdiffstd.TAdiffstd_pHstd%>%
          pH = pHstd*attr(Cdata$pHstd,"scaled:scale")+attr(Cdata$pHstd,"scaled:center")
   )%>%
   ggplot()+
-  geom_line(aes(x = pH, y = estimate), lwd = 2, color = 'blue')+
-  geom_ribbon(aes(x = pH,ymin=lower, ymax=upper), linetype=1.5, alpha=0.1, fill = "blue")+
-  geom_point(data = Cdata[Cdata$Site=='BP',], aes(x = pH, y = TAdiff), alpha = 0.1) +
+  geom_line(aes(x = pH, y = estimate), lwd = 1, color = 'grey')+
+  geom_ribbon(aes(x = pH,ymin=lower, ymax=upper), linetype=1.5, alpha=0.3, fill = "grey")+
+  geom_point(data = Cdata[Cdata$Site=='BP',], aes(x = pH, y = TAdiff, color = Tempin)) +
   xlab(expression("pH"[t]))+
   ylab(expression(atop("Net Ecosystem Calcification",paste("(",Delta, "TA/2 ", mu,"mol kg"^-1, ")"))))+
-  theme_minimal()
+  scale_color_gradient(low = "blue", high = "red", name = "Temperature")+
+ # labs(title = expression(paste('NEC ~ ', bold('pH'), ' + Temperature')))+
+  theme_minimal()+
+  theme(plot.title = element_text(hjust = 0.5, size = 14), legend.position = 'bottom',
+        legend.box = "horizontal")+
+  guides(colour = guide_colourbar(title.position="top", title.hjust = 0.5))
+
 
 R<-conditional_effects(k_fit_brms, "Tempinstd", resp = "TAdiffstd", method = "predict", resolution = 1000)
 R8<-R$TAdiffstd.TAdiffstd_Tempinstd%>%
@@ -325,17 +359,27 @@ R8<-R$TAdiffstd.TAdiffstd_Tempinstd%>%
          Tempin = Tempinstd*attr(Cdata$Tempinstd,"scaled:scale")+attr(Cdata$Tempinstd,"scaled:center")
   )%>%
   ggplot()+
-  geom_line(aes(x = Tempin, y = estimate), lwd = 2, color = "blue")+
-  geom_ribbon(aes(x = Tempin,ymin=lower, ymax=upper),fill = "blue", linetype=1.5, alpha=0.1)+
-  geom_point(data = Cdata[Cdata$Site=='BP',], aes(x = Tempin, y = TAdiff), alpha = 0.1) +
+  geom_line(aes(x = Tempin, y = estimate), lwd = 1, color = "grey")+
+  geom_ribbon(aes(x = Tempin,ymin=lower, ymax=upper),fill = "grey", linetype=1.5, alpha=0.3)+
+  geom_point(data = Cdata[Cdata$Site=='BP',], aes(x = Tempin, y = TAdiff, color = pH)) +
   xlab(expression(atop("Temperature",paste("(", degree, "C)"))))+
   ylab(expression(atop("Net Ecosystem Calcification",paste("(",Delta, "TA/2 ", mu,"mol kg"^-1, ")"))))+
-  theme_minimal()
+  scale_color_gradient(low = "yellow", high = "orange", name = expression("pH"[t]))+
+ # labs(title = expression(paste('NEC ~ pH + ', bold('Temperature'))))+
+  theme_minimal()+
+  theme(plot.title = element_text(hjust = 0.5, size = 14), legend.position = 'bottom',
+        legend.box = "horizontal")+
+  guides(colour = guide_colourbar(title.position="top", title.hjust = 0.5))
+
 
 R1+R2+R3+R4+R5+R6+R7+R8+
   plot_annotation(title = 'Marginal Effects for all Black Point Models', tag_levels = "A")+
   plot_layout(guides = "collect")+
   ggsave("Output/marginaleffects_BlackPoint.pdf", width = 12, height = 10)
+
+(R1|R2)/(R3|R6)/(R4|R5)/(R7|R8)+plot_layout(guides = "collect")+
+  plot_annotation(tag_levels = "A")+
+  ggsave("test.pdf", width = 11, height = 15)
 
 ## get the posterior
 post <- posterior_samples(k_fit_brms)
