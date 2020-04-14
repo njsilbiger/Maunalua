@@ -1,7 +1,8 @@
 ## Run Bayesian SEM for Maunalua carbonate chemistry data
 ## By: Nyssa Silbiger
-## Last updated: 4/9/2020
+## Last updated: 4/14/2020
 ########################################################
+
 #libraries
 library(seacarb)
 library(lme4)
@@ -15,8 +16,6 @@ library(tidyverse)
 library(ggthemes)
 library(patchwork)
 library(bayesplot)
-library(dagitty)
-library(ggdag)
 library(ggtext)
 library(modelr)
 
@@ -77,7 +76,7 @@ Hot.Si<-1.17
 #predicted TA based on mixing line
 ## use cristina's methods  C1 = Cmix + (Cmix – Csgd)(((Smix – 35.2)/(Ssgd – Smix))  
 
-Cdata<-Cdata %>% # calculate predicted data from mixing line based on silicate for each site and season
+Cdata<-Cdata %>% # calculate predicted data from mixing line based on silicate for each site and season. I used Si because it is a better tracer for GW that Salinity
   #TA
   mutate(TA.pred = case_when(Site == 'BP'~ TA+(TA - BP.end.TA)*((Silicate - Hot.Si)/(BP.end.Si - Silicate)),
                              Site == 'W' ~ TA+(TA - W.end.TA)*((Silicate - Hot.Si)/(W.end.Si - Silicate))))%>%
@@ -97,17 +96,18 @@ Cdata<-Cdata %>% # calculate predicted data from mixing line based on silicate f
 Cdata$Tide<-droplevels(Cdata$Tide) #this removes levels that don'e exist anymore (empty spaces for example)
 levels(Cdata$Tide)<-c("H","H","L","L") # this makes H1 and H2 both H and same for L1 and L2
 
-# filter out the zones so that it is only diffures, ambient, and transition
+# filter out the zones so that it is only diffuse, ambient, and transition. We did not get consistent data offshore because of Kayak disaster
 Cdata<-Cdata %>% 
   dplyr::filter(Zone != 'Offshore')%>%
   droplevels()
 
 #SEM######################
-# Test the effect of SGD (salinity) on pH which is mediated by N uptake and production rates. 
-# Hypothesis: High SGD (low salinity/high silicate) increases N uptake of producers, which increases production (delta DIC), which increases pH
+# Test the effect of SGD on ecosystem functioning mediated by changes in NN, Temperature, and pH. 
+# Hypothesis: High SGD (low salinity/high silicate) increases N uptake of producers, which increases production (delta DIC), which increases pH, which increases NEC.
+# But this relationship changes with Day/Night and Season (Temperature)
 
 Cdata <- Cdata %>%
-  filter(TA.diff < 150 & TA.diff > -10) %>% # remove outlier
+  filter(TA.diff < 150 & TA.diff > -10) %>% # remove 2 clear outliers
   mutate(log_NN = log(NN),
          log_PO = log(Phosphate),
          log_SGD = log(percent_sgd),
@@ -121,10 +121,32 @@ Cdata<-Cdata %>%
          Season = recode(Season, SPRING = "Spring",
                          FALL = "Fall"))  ## change the factors for prettier names
 # each level is a model
-## SGD drives changes in N  directly; 
-# N  directly drive changes in DIC diff (net production);
+## SGD drives changes in N  and Temperature directly; 
+# N and Temperature directly drive changes in DIC diff (net production);
 # DIC diff and SGD directly drive changes in pH;
 # pH directly drives changes in TA diff (NEC)
+
+## N and P are highly colinear so I just used N to represent the nutrient gradient
+# correlation coefficient for BP
+BP.R <- round(cor(Cdata$NN[Cdata$Site =="BP"], Cdata$Phosphate[Cdata$Site =="BP"]),2)
+## Cor coef for Wailupe
+W.R <- round(cor(Cdata$NN[Cdata$Site =="W"], Cdata$Phosphate[Cdata$Site =="W"]),2)
+#put it in a dataframe
+cors<-data.frame(R = c(BP.R, W.R), Site = c("Black Point", "Wailupe"))
+
+#make a plot
+Cdata %>%
+  mutate(Site = ifelse(Site == "BP", "Black Point", "Wailupe"))%>%
+ggplot( aes(x = NN, y = Phosphate))+
+  geom_point(color = "grey")+
+  geom_smooth(method = "lm", formula = "y ~ x",color = "black")+
+  geom_text(data = cors, aes(x = 7, y = 0.8, label = paste("Pearson's R =", R)))+
+  facet_wrap(~Site)+
+  xlab(expression(atop("Nitrate + Nitrite", paste("(",mu, "mol L"^-1,")"))))+
+  ylab(expression(atop("Phosphate", paste("(",mu, "mol L"^-1,")"))))+
+  theme_bw()+
+  theme(strip.background = NULL)+
+  ggsave("Output/NNvsPO.pdf", useDingbats = FALSE, width = 8, height = 4)
 
 ### model a bayesian SEM (individual one for each site since the geo chemistry of the SGD is different)
 ## brms does some weird things with columns names that have non-alphanumerics. Here I am removing them all
@@ -132,11 +154,11 @@ colnames(Cdata)<-str_replace_all(colnames(Cdata), "[^[:alnum:]]", "")
 
 # run one site at a time because they have different biogeochem in the SGD
 NN_mod<-bf(logNNstd ~ logSGDstd) # NN ~ SGD which can change by site
-Temp_mod<-bf(Tempinstd ~ DayNight*logSGDstd*Season) ## SGD has cooler water and the intercept changes with season
+Temp_mod<-bf(Tempinstd ~ DayNight*logSGDstd*Season) ## SGD has cooler water and relationship changes by DayNight and Seaso
 #PO_mod<-bf(logPOstd ~ logSGDstd) # PO ~ SGD which can change by site
-DIC_mod <- bf(DICdiffstd ~ DayNight*Tide*logNNstd +Season*Tempinstd) # DIC ~ nutrients and temperature, which can change by day/night (i.e. high nutrients could lead to high P during the day and high R at night what have opposite signs). It is also non-linear
+DIC_mod <- bf(DICdiffstd ~ DayNight*Tide*logNNstd +Season*Tempinstd) # DIC ~ nutrients and temperature, which can change by day/night (i.e. high nutrients could lead to high P during the day and high R at night what have opposite signs). Season also affects the relationship between NP and temp (light, flow, starting temp, etc)
 pH_mod <- bf(pHstd ~ DICdiffstd + logSGDstd) # pH ~ NEP + SGD
-TA_mod<-bf(TAdiffstd ~ pHstd+Tempinstd) # NEC ~ pH and temperature, which can change by Tide, because low has more nutrients it may distrupt this relationship (based on Silbiger et al. 2018)
+TA_mod<-bf(TAdiffstd ~ pHstd+Tempinstd) # NEC ~ pH and temperature 
 
 # Run the model first for Black Point
 k_fit_brms <- brm(TA_mod+
@@ -148,7 +170,7 @@ k_fit_brms <- brm(TA_mod+
                   data=Cdata[Cdata$Site=='BP',],
                   cores=4, chains = 3)
 
-# view the effect sized
+# view the effect sizes
 fixef(k_fit_brms)
 
 #check it
@@ -181,7 +203,9 @@ p1+p2+p3+p4+p5+plot_layout(guides = "collect") +
   ggsave("Output/Posteriorchecks_BlackPoint.pdf", width = 5, height = 5)
 ## pp checks look good!
 
-# plot the conditional effects
+# plot the conditional effects for all of the BP models
+
+# Model 1
 conditions <- make_conditions(k_fit_brms, "Season") # for the three way interaction
 
 R<-conditional_effects(k_fit_brms, "logSGDstd", resp = "logNNstd", method = "predict", resolution = 1000)
@@ -204,6 +228,7 @@ R1<-R$logNNstd.logNNstd_logSGDstd %>% # back transform the scaled effects for th
   theme_minimal()+
   theme(plot.title = element_text(hjust = 0.5, size = 14), legend.position = 'bottom')
 
+#Model 2
 R<-conditional_effects(k_fit_brms, "logSGDstd:DayNight", resp = "Tempinstd",  conditions = conditions,method = "predict", resolution = 1000)
 R2<-R$`Tempinstd.Tempinstd_logSGDstd:DayNight`%>%
   mutate(estimate = estimate__*attr(Cdata$Tempinstd,"scaled:scale")+attr(Cdata$Tempinstd,"scaled:center"),
@@ -227,6 +252,8 @@ R2<-R$`Tempinstd.Tempinstd_logSGDstd:DayNight`%>%
   facet_wrap(~Season)
 
 #conditions <- make_conditions(k_fit_brms, "Tide") # for the three way interaction
+
+#Model 3
 
 R<-conditional_effects(k_fit_brms, "logSGDstd", resp = "pHstd",conditions = conditions, method = "predict", resolution = 1000)
 R3<-R$pHstd.pHstd_logSGDstd %>%
@@ -276,8 +303,7 @@ R6<-R$pHstd.pHstd_DICdiffstd%>%
         legend.box = "horizontal")+
   guides(colour = guide_colourbar(title.position="top", title.hjust = 0.5))
 
-#Bring together the pH models
-#pHplot<-R3+R6&plot_annotation(title = "pH ~ %SGD + NEP")&theme(plot.title = element_text(hjust = 0.5, size = 16))
+#Model 4
 
 conditions <- make_conditions(k_fit_brms, c("Tide")) # for the three way interaction
 
@@ -335,6 +361,7 @@ R5<-R$`DICdiffstd.DICdiffstd_Tempinstd:Season`%>%
         legend.box = "horizontal")+
   guides(colour = guide_colourbar(title.position="top", title.hjust = 0.5))
 
+#Model 5
 R<-conditional_effects(k_fit_brms, "pHstd", resp = "TAdiffstd", method = "predict", resolution = 1000)
 R7<-R$`TAdiffstd.TAdiffstd_pHstd`%>%
   mutate(estimate = estimate__*attr(Cdata$TAdiffstd,"scaled:scale")+attr(Cdata$TAdiffstd,"scaled:center"),
@@ -384,12 +411,7 @@ R8<-R$`TAdiffstd.TAdiffstd_Tempinstd`%>%
         legend.box = "horizontal")+
   guides(colour = guide_colourbar(title.position="top", title.hjust = 0.5))
 
-
-# R1+R2+R3+R4+R5+R6+R7+R8+
-#   plot_annotation(title = 'Marginal Effects for all Black Point Models', tag_levels = "A")+
-#   plot_layout(guides = "collect")+
-#   ggsave("Output/marginaleffects_BlackPoint.pdf", width = 12, height = 10)
-
+## bring them all together in patchwork
 (R1|R2)/(R3|R6)/(R4|R5)/(R7|R8)+plot_layout(guides = "collect")+
   plot_annotation(tag_levels = "A")+
   ggsave("Output/marginaleffects_BlackPoint.pdf", width = 10, height = 15, useDingbats = FALSE)
@@ -461,245 +483,7 @@ Cof3<-post %>%
         axis.text.y  = element_text(hjust = 0),
         axis.ticks.y = element_blank())
 
-Cof1+Cof2+Cof3+
-  plot_annotation(title = 'Standardized coefficients for Black Point', tag_levels = "A")+
-  ggsave("Output/coefficients_BlackPoint.png", width = 10, height = 7)
-
-# pull out the estimates and set it up to join with the DAG
-estimates1<-data.frame(fixef(k_fit_brms)) %>%
-  rownames_to_column(var = "name")%>%
-  separate(name, into = c("to","name"), sep = "_") %>%
-  select(name, to, 3:6) %>%
-  filter(name != 'Intercept', to != 'DICdiffstd', to !="Tempinstd") # remove the intercepts and interaction terms (Calculated below) for the DAG
-
-## pull out temp to DIC
-estimates<-data.frame(fixef(k_fit_brms)) %>%
-  rownames_to_column(var = "name")%>%
-  separate(name, into = c("to","name"), sep = "_") %>%
-  select(name, to, 3:6) %>%
-  filter(to == 'DICdiffstd', name =="Tempinstd")%>% # remove the intercepts and interaction terms (Calculated below) for the DAG
-  bind_rows(estimates1)
-  
-### deal with interaction terms. First for DIC models
-InteractionsDIC<-post %>%
-  transmute(logNNstd_Night_Fall_High    = `b_DICdiffstd_logNNstd` + `b_DICdiffstd_DayNightNight:logNNstd`,
-            logNNstd_Day_Fall_High = `b_DICdiffstd_logNNstd`,
-            
-            logNNstd_Night_Fall_Low    = `b_DICdiffstd_logNNstd` + `b_DICdiffstd_DayNightNight:logNNstd` +`b_DICdiffstd_TideLowTide:logNNstd` +`b_DICdiffstd_TideLowTide:DayNightNight:logNNstd`,
-            logNNstd_Day_Fall_Low = `b_DICdiffstd_logNNstd`+`b_DICdiffstd_TideLowTide:logNNstd`,
-            
-            logNNstd_Night_Spring_High    = `b_DICdiffstd_logNNstd` + `b_DICdiffstd_DayNightNight:logNNstd` + `b_DICdiffstd_logNNstd:SeasonSpring` +`b_DICdiffstd_DayNightNight:logNNstd:SeasonSpring`,
-            logNNstd_Day_Spring_High = `b_DICdiffstd_logNNstd`+ `b_DICdiffstd_logNNstd:SeasonSpring`,
-            
-            logNNstd_Night_Spring_Low    = `b_DICdiffstd_logNNstd` + `b_DICdiffstd_DayNightNight:logNNstd` + `b_DICdiffstd_logNNstd:SeasonSpring`+`b_DICdiffstd_TideLowTide:logNNstd` +`b_DICdiffstd_TideLowTide:DayNightNight:logNNstd:SeasonSpring`+`b_DICdiffstd_TideLowTide:logNNstd:SeasonSpring`+`b_DICdiffstd_DayNightNight:logNNstd:SeasonSpring`+`b_DICdiffstd_TideLowTide:DayNightNight:logNNstd`,
-            logNNstd_Day_Spring_Low = `b_DICdiffstd_logNNstd`+ `b_DICdiffstd_logNNstd:SeasonSpring`+`b_DICdiffstd_TideLowTide:logNNstd` +`b_DICdiffstd_TideLowTide:logNNstd:SeasonSpring`
-            
-               ) %>%
-  gather(key, value) %>%
-  group_by(key) %>%
-  summarise(Estimate = mean(value), Est.Error = sd(value),
-            Q2.5 = mean(value) - qt(1- 0.05/2, (n() - 1))*sd(value)/sqrt(n()),
-            Q97.5 = mean(value) + qt(1- 0.05/2, (n() - 1))*sd(value)/sqrt(n())) %>%
-  separate(key, into = c("name", "DayNight", "Season", "Tide")) %>%
-  mutate(to = "DICdiffstd") %>%
-  select(name,to, 2:8)
-
-# Interactions temp SGD
-InteractionsSGD<-post %>%
-  transmute(
-    logSGDstd_Day_Spring_Both = `b_Tempinstd_logSGDstd` +`b_Tempinstd_logSGDstd:SeasonSpring`,
-    logSGDstd_Night_Spring_Both = `b_Tempinstd_logSGDstd` +`b_Tempinstd_logSGDstd:SeasonSpring` +`b_Tempinstd_DayNightNight:logSGDstd`+`b_Tempinstd_DayNightNight:logSGDstd:SeasonSpring`,
-    logSGDstd_Day_Fall_Both = `b_Tempinstd_logSGDstd`,
-    logSGDstd_Night_Fall_Both = `b_Tempinstd_logSGDstd`+`b_Tempinstd_DayNightNight:logSGDstd`
-    
-  ) %>%
-  gather(key, value) %>%
-  group_by(key) %>%
-  summarise(Estimate = mean(value), Est.Error = sd(value),
-            Q2.5 = mean(value) - qt(1- 0.05/2, (n() - 1))*sd(value)/sqrt(n()),
-            Q97.5 = mean(value) + qt(1- 0.05/2, (n() - 1))*sd(value)/sqrt(n())) %>%
-  separate(key, into = c("name", "DayNight", "Season", "Tide")) %>%
-  mutate(to = "Tempinstd") %>%
-  select(name,to, 2:8)
-
-#Bind everything together
-  estimates<-bind_rows(estimates, InteractionsDIC, InteractionsSGD) %>% # bind with the estimates above
-  mutate(DayNight = replace_na(DayNight, "Both"),
-         Season = replace_na(Season, "Both"),
-         Tide = replace_na(Tide, "Both")  )
-
-### Make a DAG ####
-  bigger_dag <- dagify(TAdiffstd ~ pHstd+ Tempinstd,
-                       pHstd ~ DICdiffstd + logSGDstd,
-                       DICdiffstd ~ logNNstd + Tempinstd,
-                       logNNstd ~ logSGDstd,
-                       Tempinstd ~ logSGDstd,
-                       exposure = "logSGDstd",
-                       outcome = "TAdiffstd",
-                       labels = c("TAdiffstd" = "NEC",
-                                  "pHstd" = "pH",
-                                  "Tempinstd" = "Temperature",
-                                  "logSGDstd" = "Log % SGD",
-                                  "DICdiffstd" ="NEP",
-                                  "logNNstd" = "log NN")) %>%
-    tidy_dagitty(layout = "tree", seed = 25)
-  
-  
-  #quick visual
-#  ggdag(bigger_dag, use_labels = "label", text = FALSE)+
-#    theme_dag()
-
-# join it with the estimates so that I can add colors and line thickness to related to effectsize
-  DAGdata<-bigger_dag %>%
-    dag_paths() %>% #### then left join these with the effect sizes
-    as_tibble() %>%
-    left_join(estimates) %>%
-    mutate(DayNight = replace_na(DayNight, "Both"),
-           Season = replace_na(Season, "Both"),
-           Tide = replace_na(Tide, "Both"))%>%
-    mutate(est_sign = as.character(sign(Estimate)))%>% # add a column for pos and negative
-    mutate(edge_cols = case_when(est_sign == '-1' ~ "#d6604d",#"#fc8d59", 
-                                 est_sign == '1' ~ "#4393c3")) %>%
-    mutate(edge_lines = ifelse(sign(Q2.5)==sign(Q97.5),1,2),# add a dashed or solid line for significant effects (i.e. 95%CI does not overlap 0)
-           edge_alpha = ifelse(sign(Q2.5)==sign(Q97.5),1,0.1)# make non-significant transparent
-           ) 
-
-  
-  ## Basic DAG
-  DAGdata %>%
-    filter(DayNight %in% c("Both", "Day"), Season %in% c("Both", "Spring"), Tide %in% c("Both","Low"))%>%
-    ggplot(aes(x = x, y = y, xend = xend, yend = yend)) +
-    geom_dag_node() +
-    geom_dag_edges(
-      #edge_colour = 'grey'
-      #edge_linetype = edge_lines,
-      #edge_alpha = edge_alpha)
-    ) +
-    geom_dag_text_repel(aes(label = label))+
-    theme_dag() +
-    ggsave(filename = 'Output/BasicDAG.pdf', width = 6, height = 6)
-
-  #Day Spring High DAG
-  DaySpringHigh_DAG<-DAGdata %>% 
-    filter(DayNight %in% c("Both", "Day"), Season %in% c("Both", "Spring"), Tide %in% c("Both","High"))%>%
-    ggplot(aes(x = x, y = y, xend = xend, yend = yend)) +
-    geom_dag_edges(aes(edge_width = abs(Estimate), 
-                       edge_colour = edge_cols, 
-                       #edge_linetype = edge_lines,
-                       edge_alpha = edge_alpha)) +
-    geom_dag_node() +
-    geom_dag_text_repel(aes(label = label))+
-    theme_dag() +
-    ggtitle('Spring Daytime High Tide')+
-    theme(plot.title = element_text(hjust = 0.5))
-                                                                    
-  #Day Spring Low DAG
-  DaySpringLow_DAG<-DAGdata %>% 
-    filter(DayNight %in% c("Both", "Day"), Season %in% c("Both", "Spring"), Tide %in% c("Both","Low"))%>%
-    ggplot(aes(x = x, y = y, xend = xend, yend = yend)) +
-    geom_dag_edges(aes(edge_width = abs(Estimate), 
-                       edge_colour = edge_cols, 
-                       #edge_linetype = edge_lines,
-                       edge_alpha = edge_alpha)) +
-    geom_dag_node() +
-    geom_dag_text_repel(aes(label = label))+
-    theme_dag() +
-    ggtitle('Spring Daytime Low Tide')+
-    theme(plot.title = element_text(hjust = 0.5))
-  
-  #Night Spring High DAG
-  NightSpringHigh_DAG<-DAGdata %>% 
-    filter(DayNight %in% c("Both", "Night"), Season %in% c("Both", "Spring"), Tide %in% c("Both","High"))%>%
-    ggplot(aes(x = x, y = y, xend = xend, yend = yend)) +
-    geom_dag_edges(aes(edge_width = abs(Estimate), 
-                       edge_colour = edge_cols, 
-                       #edge_linetype = edge_lines,
-                       edge_alpha = edge_alpha)) +
-    geom_dag_node() +
-    geom_dag_text_repel(aes(label = label))+
-    theme_dag() +
-    ggtitle('Spring Nighttime High Tide')+
-    theme(plot.title = element_text(hjust = 0.5))
-  
-  #Night Spring Low DAG
-  NightSpringLow_DAG<-DAGdata %>% 
-    filter(DayNight %in% c("Both", "Night"), Season %in% c("Both", "Spring"), Tide %in% c("Both","Low"))%>%
-    ggplot(aes(x = x, y = y, xend = xend, yend = yend)) +
-    geom_dag_edges(aes(edge_width = abs(Estimate), 
-                       edge_colour = edge_cols, 
-                       #edge_linetype = edge_lines,
-                       edge_alpha = edge_alpha)) +
-    geom_dag_node() +
-    geom_dag_text_repel(aes(label = label))+
-    theme_dag() +
-    ggtitle('Spring Nighttime Low Tide')+
-    theme(plot.title = element_text(hjust = 0.5))
-  
-  #Day Fall High DAG
-  DayFallHigh_DAG<-DAGdata %>% 
-    filter(DayNight %in% c("Both", "Day"), Season %in% c("Both", "Fall"),Tide %in% c("Both","High"))%>%
-    ggplot(aes(x = x, y = y, xend = xend, yend = yend)) +
-    geom_dag_edges(aes(edge_width = abs(Estimate), 
-                       edge_colour = edge_cols, 
-                       #edge_linetype = edge_lines,
-                       edge_alpha = edge_alpha)) +
-    geom_dag_node() +
-    geom_dag_text_repel(aes(label = label))+
-    theme_dag() +
-    ggtitle('Fall Daytime High Tide')+
-    theme(plot.title = element_text(hjust = 0.5))
-
-  #Day Fall Low DAG
-  DayFallLow_DAG<-DAGdata %>% 
-    filter(DayNight %in% c("Both", "Day"), Season %in% c("Both", "Fall"),Tide %in% c("Both","Low"))%>%
-    ggplot(aes(x = x, y = y, xend = xend, yend = yend)) +
-    geom_dag_edges(aes(edge_width = abs(Estimate), 
-                       edge_colour = edge_cols, 
-                       #edge_linetype = edge_lines,
-                       edge_alpha = edge_alpha)) +
-    geom_dag_node() +
-    geom_dag_text_repel(aes(label = label))+
-    theme_dag() +
-    ggtitle('Fall Daytime Low Tide')+
-    theme(plot.title = element_text(hjust = 0.5))
-  
-  #Night Fall High DAG
-  NightFallHigh_DAG<-DAGdata %>% 
-    filter(DayNight %in% c("Both", "Night"), Season %in% c("Both", "Fall"), Tide %in% c("Both","High"))%>%
-    ggplot(aes(x = x, y = y, xend = xend, yend = yend)) +
-     geom_dag_edges(aes(edge_width = abs(Estimate), 
-                       edge_colour = edge_cols, 
-                       #edge_linetype = edge_lines,
-                       edge_alpha = edge_alpha)) +
-    geom_dag_node() +
-    geom_dag_text_repel(aes(label = label))+
-    theme_dag() +
-    ggtitle('Fall Nighttime High Tide')+
-    theme(plot.title = element_text(hjust = 0.5)) 
-  
-  #Night Fall High DAG
-  NightFallLow_DAG<-DAGdata %>% 
-    filter(DayNight %in% c("Both", "Night"), Season %in% c("Both", "Fall"), Tide %in% c("Both","Low"))%>%
-    ggplot(aes(x = x, y = y, xend = xend, yend = yend)) +
-    geom_dag_edges(aes(edge_width = abs(Estimate), 
-                       edge_colour = edge_cols, 
-                       #edge_linetype = edge_lines,
-                       edge_alpha = edge_alpha)) +
-    geom_dag_node() +
-    geom_dag_text_repel(aes(label = label))+
-    theme_dag() +
-    ggtitle('Fall Nighttime Low Tide')+
-    theme(plot.title = element_text(hjust = 0.5)) 
-  
-  DAGPlot_BP_High<- (DaySpringHigh_DAG +NightSpringHigh_DAG)/(DayFallHigh_DAG +NightFallHigh_DAG)+
-    plot_annotation(tag_levels = "A",title = "Black Point")+
-    ggsave("Output/DAGplotsBP_High.pdf", width = 12, height = 13, useDingbats = FALSE)
-  
-  DAGPlot_BP_Low<- (DaySpringLow_DAG +NightSpringLow_DAG)/(DayFallLow_DAG +NightFallLow_DAG)+
-    plot_annotation(tag_levels = "A",title = "Black Point")+
-    ggsave("Output/DAGplotsBP_Low.pdf", width = 12, height = 13, useDingbats = FALSE)
-  
-  ###### Run Model for Wailupe (Need to add interaction terms with high and low tide in the model.. so many interactions) ###############
+  ###### Run Model for Wailupe ###############
 
 W_fit_brms <- brm(TA_mod+
                     pH_mod+
@@ -743,7 +527,9 @@ Wp1+Wp2+Wp3+Wp4+Wp5+plot_layout(guides = "collect") +
   ggsave("Output/Posteriorchecks_Wailupe.pdf", width = 5, height = 5)
 
 # plot some of the conditional effects
-conditions <- make_conditions(W_fit_brms, "Season")
+
+#Model 1
+conditions <- make_conditions(W_fit_brms, "Season") # for the three way interaction
 
 W<-conditional_effects(W_fit_brms, "logSGDstd", resp = "logNNstd", method = "predict", resolution = 1000)
 WR1<-W$logNNstd.logNNstd_logSGDstd %>% # back transform the scaled effects for the plot
@@ -753,37 +539,43 @@ WR1<-W$logNNstd.logNNstd_logSGDstd %>% # back transform the scaled effects for t
          logSGD = logSGDstd*attr(Cdata$logSGDstd,"scaled:scale")+attr(Cdata$logSGDstd,"scaled:center")
   )%>%
   ggplot()+ # back trasform the log transformed data for better visual
-  geom_line(aes(x = exp(logSGD), y = exp(estimate)), lwd = 2, color = 'blue')+
-  geom_ribbon(aes(x = exp(logSGD),ymin=exp(lower), ymax=exp(upper)), linetype=1.5, alpha=0.1, fill = "blue")+
-  geom_point(data = Cdata[Cdata$Site=='W',], aes(x = percentsgd, y = NN), alpha = 0.1) +
-  xlab("Percent SGD")+
-  ylab(expression(atop("Nitrate + Nitrite", paste("(mmol L"^-1,")"))))+
+  geom_line(aes(x = exp(logSGD), y = exp(estimate)), lwd = 1, color = 'grey')+
+  geom_ribbon(aes(x = exp(logSGD),ymin=exp(lower), ymax=exp(upper)), linetype=1.5, alpha=0.3, fill = "grey")+
+  geom_point(data = Cdata[Cdata$Site=='W',], aes(x = percentsgd, y = NN)) +
+  xlab("% SGD")+
+  ylab(expression(atop("Nitrate + Nitrite", paste("(",mu, "mol L"^-1,")"))))+
+  ggtitle("Model 1")+
   coord_trans(x="log", y="log")+
-  scale_x_continuous(breaks = c(0,1,5,10,25))+
-  scale_y_continuous(breaks = c(0,0.1,1,10))+
-  theme_minimal()
+  scale_x_continuous(breaks = c(0.2,1,5,10,25))+
+  scale_y_continuous(breaks = c(0,0.1,1,5,10,30))+
+  theme_minimal()+
+  theme(plot.title = element_text(hjust = 0.5, size = 14), legend.position = 'bottom')
 
-
+#Model 2
 W<-conditional_effects(W_fit_brms, "logSGDstd:DayNight", resp = "Tempinstd",  conditions = conditions,method = "predict", resolution = 1000)
-WR2<-W$Tempinstd.Tempinstd_logSGDstd%>%
+WR2<-W$`Tempinstd.Tempinstd_logSGDstd:DayNight`%>%
   mutate(estimate = estimate__*attr(Cdata$Tempinstd,"scaled:scale")+attr(Cdata$Tempinstd,"scaled:center"),
          lower = lower__*attr(Cdata$Tempinstd,"scaled:scale")+attr(Cdata$Tempinstd,"scaled:center"),
          upper = upper__*attr(Cdata$Tempinstd,"scaled:scale")+attr(Cdata$Tempinstd,"scaled:center"),
          logSGD = logSGDstd*attr(Cdata$logSGDstd,"scaled:scale")+attr(Cdata$logSGDstd,"scaled:center")
   )%>%
   ggplot()+
-  geom_line(aes(x = exp(logSGD), y = estimate, color = DayNight), lwd = 2)+
-  geom_ribbon(aes(x = exp(logSGD),ymin=lower, ymax=upper, fill = DayNight), linetype=1.5, alpha=0.1)+
-  geom_point(data = Cdata[Cdata$Site=='W',], aes(x = percentsgd, y = Tempin, color = DayNight), alpha = 0.1) +
-  xlab("Percent SGD")+
+  geom_line(aes(x = exp(logSGD), y = estimate, lty = DayNight, group = DayNight), lwd = 1, color = "grey")+
+  geom_ribbon(aes(x = exp(logSGD),ymin=lower, ymax=upper, group = DayNight), linetype=1.5, alpha=0.3, fill = "grey")+
+  geom_point(data = Cdata[Cdata$Site=='W',], aes(x = percentsgd, y = Tempin, shape = DayNight) ) +
+  xlab("% SGD")+
   ylab(expression(atop("Temperature",paste("(", degree, "C)"))))+
+  scale_shape_manual(values=c(0,15), name = "")+
+  scale_linetype_manual(values = c(1,2),name = "")+
   coord_trans(x="log")+
-  scale_x_continuous(breaks = c(0,1,5,10,25))+
+  scale_x_continuous(breaks = c(0.2,1,5,10,25))+
+  ggtitle("Model 2")+
   theme_minimal()+
+  theme(plot.title = element_text(hjust = 0.5, size = 14), legend.position = 'bottom')+
   facet_wrap(~Season)
 
-
-W<-conditional_effects(W_fit_brms, "logSGDstd", resp = "pHstd", method = "predict", resolution = 1000)
+#Model 3
+W<-conditional_effects(W_fit_brms, "logSGDstd", resp = "pHstd",conditions = conditions, method = "predict", resolution = 1000)
 WR3<-W$pHstd.pHstd_logSGDstd %>%
   mutate(estimate = estimate__*attr(Cdata$pHstd,"scaled:scale")+attr(Cdata$pHstd,"scaled:center"),
          lower = lower__*attr(Cdata$pHstd,"scaled:scale")+attr(Cdata$pHstd,"scaled:center"),
@@ -791,111 +583,166 @@ WR3<-W$pHstd.pHstd_logSGDstd %>%
          logSGD = logSGDstd*attr(Cdata$logSGDstd,"scaled:scale")+attr(Cdata$logSGDstd,"scaled:center")
   )%>%
   ggplot()+
-  geom_line(aes(x = exp(logSGD), y = estimate), lwd = 2, color = 'blue')+
-  geom_ribbon(aes(x = exp(logSGD),ymin=lower, ymax=upper), linetype=1.5, alpha=0.1, fill = "blue")+
-  geom_point(data = Cdata[Cdata$Site=='W',], aes(x = percentsgd, y = pH), alpha = 0.1) +
-  xlab("Percent SGD")+
+  geom_line(aes(x = exp(logSGD), y = estimate), color = "grey", lwd = 1)+
+  geom_ribbon(aes(x = exp(logSGD),ymin=lower, ymax=upper), fill = "grey", linetype=1.5, alpha=0.3)+
+  geom_point(data = Cdata[Cdata$Site=='W',], aes(x = percentsgd, y = pH, color = DICdiff)) +
+  xlab("% SGD")+
   ylab(expression("pH"[t]))+
+  scale_y_continuous(limits = c(7.7, 8.4), breaks = seq(7.8, 8.4, by = 0.2))+
+  labs(title = 'Model 3',
+       color = "NEP")+
   coord_trans(x="log")+
-  scale_x_continuous(breaks = c(0,1,5,10,25))+
-  theme_minimal()
+  scale_color_gradient2(low = "#D8B365",
+                        mid = "gray88",
+                        high = "#5AB4AC",
+                        midpoint = 0)+
+  scale_x_continuous(breaks = c(0.2,1,5,10,25))+
+  theme_minimal()+
+  theme(plot.title = element_text(hjust = 0.5, size = 14), legend.position = 'bottom',
+        legend.box = "horizontal")+
+  guides(colour = guide_colourbar(title.position="top", title.hjust = 0.5))
 
-conditions <- make_conditions(W_fit_brms, c("Tide","Season")) # for the three way interaction
 
-WR<-conditional_effects(W_fit_brms, "logNNstd:DayNight",conditions = conditions,  resp = "DICdiffstd", method = "predict", resolution = 1000)
-WR4<-WR$`DICdiffstd.DICdiffstd_logNNstd:DayNight`%>%
+W<-conditional_effects(W_fit_brms, "DICdiffstd", resp = "pHstd", method = "predict", resolution = 1000)
+WR6<-W$pHstd.pHstd_DICdiffstd%>%
+  mutate(estimate = estimate__*attr(Cdata$pHstd,"scaled:scale")+attr(Cdata$pHstd,"scaled:center"),
+         lower = lower__*attr(Cdata$pHstd,"scaled:scale")+attr(Cdata$pHstd,"scaled:center"),
+         upper = upper__*attr(Cdata$pHstd,"scaled:scale")+attr(Cdata$pHstd,"scaled:center"),
+         DICdiff = DICdiffstd*attr(Cdata$DICdiffstd,"scaled:scale")+attr(Cdata$DICdiffstd,"scaled:center")
+  )%>%
+  ggplot()+
+  geom_line(aes(x = DICdiff, y = estimate), lwd = 1, color = 'grey')+
+  geom_ribbon(aes(x = DICdiff,ymin=lower, ymax=upper), linetype=1.5, fill = "grey", alpha = 0.3)+
+  geom_point(data = Cdata[Cdata$Site=='W',], aes(x = DICdiff, y = pH, color = percentsgd)) +
+  scale_color_gradient(name = "% SGD", trans = "log", breaks =c(0.2,1,5,10))+
+  xlab(expression(atop("Net Ecosystem Production", paste("(", Delta, "DIC ", mu,"mol kg"^-1, ")"))))+
+  ylab(expression("pH"[t]))+
+  scale_y_continuous(limits = c(7.7, 8.4), breaks = seq(7.8, 8.4, by = 0.2))+
+  labs(title = "Model 3")+
+  theme_minimal()+
+  theme(plot.title = element_text(hjust = 0.5, size = 14), legend.position = 'bottom',
+        legend.box = "horizontal")+
+  guides(colour = guide_colourbar(title.position="top", title.hjust = 0.5))
+
+conditions <- make_conditions(W_fit_brms, c("Tide")) # for the three way interaction
+
+#Model 4
+W<-conditional_effects(W_fit_brms, "logNNstd:DayNight",conditions = conditions,  resp = "DICdiffstd", method = "predict", resolution = 1000)
+WR4<-W$`DICdiffstd.DICdiffstd_logNNstd:DayNight`%>%
   mutate(estimate = estimate__*attr(Cdata$DICdiffstd,"scaled:scale")+attr(Cdata$DICdiffstd,"scaled:center"),
          lower = lower__*attr(Cdata$DICdiffstd,"scaled:scale")+attr(Cdata$DICdiffstd,"scaled:center"),
          upper = upper__*attr(Cdata$DICdiffstd,"scaled:scale")+attr(Cdata$DICdiffstd,"scaled:center"),
          logNN = logNNstd*attr(Cdata$logNNstd,"scaled:scale")+attr(Cdata$logNNstd,"scaled:center")
   )%>%
+  mutate(keep = case_when(Tide == 'High Tide' & logNN <log(2) ~1,
+                          Tide == 'Low Tide' ~1))%>%
+  filter(keep == 1)%>%
   ggplot()+
-  geom_line(aes(x = exp(logNN), y = estimate, group = DayNight, color = DayNight), lwd = 2)+
-  geom_ribbon(aes(x = exp(logNN),ymin=lower, ymax=upper, group = DayNight, fill = DayNight), linetype=1.5, alpha=0.1)+
-  geom_point(data = Cdata[Cdata$Site=='W',], aes(x = NN, y = DICdiff, color = DayNight), alpha = 0.1) +
+  geom_line(aes(x = exp(logNN), y = estimate, group = DayNight, lty = DayNight), lwd = 1, color = "grey")+
+  geom_ribbon(aes(x = exp(logNN),ymin=lower, ymax=upper, group = DayNight), fill = "grey", linetype=1.5, alpha=0.3)+
+  geom_point(data = Cdata[Cdata$Site=='W',], aes(x = NN, y = DICdiff, shape = DayNight, color = Tempin)) +
   xlab(expression(atop("Nitrate + Nitrite", paste("(mmol L"^-1,")"))))+
   ylab(expression(atop("Net Ecosystem Production", paste("(", Delta, "DIC ", mu,"mol kg"^-1, ")"))))+
   coord_trans(x="log")+
-  scale_x_continuous(breaks = c(0,0.1,1,10))+
+  scale_shape_manual(values=c(0,15), name = "")+
+  scale_linetype_manual(values = c(1,2),name = "")+
+  scale_x_continuous(breaks = c(0,0.1,1,5,30))+
+  scale_y_continuous(limits = c(-200, 400), breaks = seq(-200, 500, by = 200))+
+  scale_color_gradient(low = "blue", high = "red", name = "Temperature")+
+  labs(title = "Model 4")+
   theme_minimal()+
-  facet_wrap(~Tide*Season)
+  facet_wrap(~Tide)+
+  theme(plot.title = element_text(hjust = 0.5, size = 14), legend.position = 'bottom',
+        legend.box = "horizontal")+
+  guides(colour = guide_colourbar(title.position="top", title.hjust = 0.5))
+
 
 conditions <- make_conditions(W_fit_brms, "Season") # for the three way interaction
-WR<-conditional_effects(W_fit_brms, "Tempinstd:Season", resp = "DICdiffstd",  method = "predict", resolution = 1000)
-WR5<-WR$`DICdiffstd.DICdiffstd_Tempinstd:Season`%>%
+
+W<-conditional_effects(W_fit_brms, "Tempinstd:Season", resp = "DICdiffstd",  method = "predict", resolution = 1000)
+WR5<-W$`DICdiffstd.DICdiffstd_Tempinstd:Season`%>%
   mutate(estimate = estimate__*attr(Cdata$DICdiffstd,"scaled:scale")+attr(Cdata$DICdiffstd,"scaled:center"),
          lower = lower__*attr(Cdata$DICdiffstd,"scaled:scale")+attr(Cdata$DICdiffstd,"scaled:center"),
          upper = upper__*attr(Cdata$DICdiffstd,"scaled:scale")+attr(Cdata$DICdiffstd,"scaled:center"),
          Tempin = Tempinstd*attr(Cdata$Tempinstd,"scaled:scale")+attr(Cdata$Tempinstd,"scaled:center")
-  )%>%
+  )%>% ## only select the actual data to plot over so it does not over predict
+  mutate(keep = case_when(Season == 'Spring' & Tempin <26.5 ~1,
+                          Season == 'Fall' & Tempin >24 ~1))%>%
+  filter(keep == 1)%>%
   ggplot()+
-  geom_line(aes(x = Tempin, y = estimate, group = Season), lwd = 2, color = "blue")+
-  geom_ribbon(aes(x = Tempin,ymin=lower, ymax=upper, group = Season), linetype=1.5, alpha=0.1, fill = "blue")+
-  geom_point(data = Cdata[Cdata$Site=='W',], aes(x = Tempin, y = DICdiff), alpha = 0.1, color = "blue") +
+  geom_line(aes(x = Tempin, y = estimate, group = Season), lwd = 1, color = "grey")+
+  geom_ribbon(aes(x = Tempin, ymin=lower, ymax=upper, group = Season), linetype=1.5, alpha=0.3, fill = "grey")+
+  geom_point(data = Cdata[Cdata$Site=='W',], aes(x = Tempin, y = DICdiff, color = NN)) +
   xlab(expression(atop("Temperature",paste("(", degree, "C)"))))+
   ylab(expression(atop("Net Ecosystem Production", paste("(", Delta, "DIC ", mu,"mol kg"^-1, ")"))))+
+  scale_color_gradient(name = "N+N", trans = "log", breaks =c(0.1,1,5,30), low = "lightgreen", high = "darkgreen")+
+  labs(title = 'Model 4')+
+  scale_y_continuous(limits = c(-200, 400), breaks = seq(-200, 500, by = 200))+
+  theme_minimal()+
   facet_wrap(~Season)+
-  theme_minimal()
+  theme(plot.title = element_text(hjust = 0.5, size = 14), legend.position = 'bottom',
+        legend.box = "horizontal")+
+  guides(colour = guide_colourbar(title.position="top", title.hjust = 0.5))
 
-W<-conditional_effects(W_fit_brms, "DICdiffstd", resp = "pHstd", method = "predict", resolution = 1000, conditions = conditions)
-WR6<-Cdata %>%  ## conditional effects is cutting off some data do doing this the long way
-  data_grid(DICdiffstd = seq_range(Cdata$DICdiffstd,2000), logSGDstd = median(Cdata$logSGDstd))%>%
-  add_predicted_draws(W_fit_brms, resp = "pHstd", n = 2000, re_formula = NULL,
-                      allow_new_levels = TRUE) %>%
-  mutate(.prediction = .prediction*attr(Cdata$pHstd,"scaled:scale")+attr(Cdata$pHstd,"scaled:center"),
-         DICdiff = DICdiffstd*attr(Cdata$DICdiffstd,"scaled:scale")+attr(Cdata$DICdiffstd,"scaled:center")
-  )%>%
-  median_qi(.width = c(.95)) %>%
-  ggplot(aes(x = DICdiff, y = .prediction)) +
-  geom_line(aes(y = .prediction), lwd = 2, color = 'blue')+
-  geom_ribbon(aes(x = DICdiff,ymin=.prediction.lower, ymax=.prediction.upper), linetype=1.5, alpha=0.1, fill = "blue")+
-  #stat_lineribbon(aes(y = .prediction), lwd = 2,.width = c(.95), alpha = 0.1, color = 'blue', fill = "blue") +
-  geom_point(data = Cdata[Cdata$Site=='W',], aes(x = DICdiff, y = pH), alpha = 0.1) +
-  xlab(expression(atop("Net Ecosystem Production", paste("(", Delta, "DIC ", mu,"mol kg"^-1, ")"))))+
-  ylab(expression("pH"[t]))+
-  theme_minimal()
-
+#Model 5
 W<-conditional_effects(W_fit_brms, "pHstd", resp = "TAdiffstd", method = "predict", resolution = 1000)
-WR7<-Cdata %>% 
-  data_grid(pHstd = seq_range(Cdata$pHstd,2000), Tempinstd = median(Cdata$Tempinstd))%>%
-  add_predicted_draws(W_fit_brms, resp = "TAdiffstd", n = 2000, re_formula = NULL,
-                      allow_new_levels = TRUE) %>%
-  mutate(.prediction = .prediction*attr(Cdata$TAdiffstd,"scaled:scale")+attr(Cdata$TAdiffstd,"scaled:center"),
+WR7<-W$`TAdiffstd.TAdiffstd_pHstd`%>%
+  mutate(estimate = estimate__*attr(Cdata$TAdiffstd,"scaled:scale")+attr(Cdata$TAdiffstd,"scaled:center"),
+         lower = lower__*attr(Cdata$TAdiffstd,"scaled:scale")+attr(Cdata$TAdiffstd,"scaled:center"),
+         upper = upper__*attr(Cdata$TAdiffstd,"scaled:scale")+attr(Cdata$TAdiffstd,"scaled:center"),
          pH = pHstd*attr(Cdata$pHstd,"scaled:scale")+attr(Cdata$pHstd,"scaled:center")
   )%>%
-  median_qi(.width = c(.95)) %>%
-  ggplot(aes(x = pH, y = .prediction)) +
-  geom_line(aes(y = .prediction), lwd = 2, color = 'blue')+
-  geom_ribbon(aes(x = pH,ymin=.prediction.lower, ymax=.prediction.upper), linetype=1.5, alpha=0.1, fill = "blue")+
-  geom_point(data = Cdata[Cdata$Site=='W',], aes(x = pH, y = TAdiff), alpha = 0.1) +
-  ylab(expression(atop("Net Ecosystem Calcification",paste("(",Delta, "TA/2 ", mu,"mol kg"^-1, ")"))))+
+  # mutate(keep = case_when(Season == 'Fall' & pH < 8.25 ~1,
+  #                         Season == 'Spring' ~1))%>%
+  # filter(keep == 1)%>%
+  ggplot()+
+  geom_line(aes(x = pH, y = estimate), lwd = 1, color = 'grey')+
+  geom_ribbon(aes(x = pH,ymin=lower, ymax=upper), linetype=1.5, alpha=0.3, fill = "grey")+
+  geom_point(data = Cdata[Cdata$Site=='W',], aes(x = pH, y = TAdiff, color = Tempin)) +
   xlab(expression("pH"[t]))+
-  theme_minimal()
+  ylab(expression(atop("Net Ecosystem Calcification",paste("(",Delta, "TA/2 ", mu,"mol kg"^-1, ")"))))+
+  scale_color_gradient(low = "blue", high = "red", name = "Temperature")+
+  labs(title = 'Model 5')+
+  theme_minimal()+
+  #  facet_wrap(~Season)+
+  theme(plot.title = element_text(hjust = 0.5, size = 14), legend.position = 'bottom',
+        legend.box = "horizontal")+
+  guides(colour = guide_colourbar(title.position="top", title.hjust = 0.5))
 
 W<-conditional_effects(W_fit_brms, "Tempinstd", resp = "TAdiffstd", method = "predict", resolution = 1000)
-WR8<-W$TAdiffstd.TAdiffstd_Tempinstd%>%
+WR8<-W$`TAdiffstd.TAdiffstd_Tempinstd`%>%
   mutate(estimate = estimate__*attr(Cdata$TAdiffstd,"scaled:scale")+attr(Cdata$TAdiffstd,"scaled:center"),
          lower = lower__*attr(Cdata$TAdiffstd,"scaled:scale")+attr(Cdata$TAdiffstd,"scaled:center"),
          upper = upper__*attr(Cdata$TAdiffstd,"scaled:scale")+attr(Cdata$TAdiffstd,"scaled:center"),
          Tempin = Tempinstd*attr(Cdata$Tempinstd,"scaled:scale")+attr(Cdata$Tempinstd,"scaled:center")
   )%>%
+  #  mutate(keep = case_when(Season == 'Spring' & Tempin <27 ~1,
+  #                          Season == 'Fall' & Tempin >26 ~1))%>%
+  #  filter(keep == 1)%>%
   ggplot()+
-  geom_line(aes(x = Tempin, y = estimate), lwd = 2, color = "blue")+
-  geom_ribbon(aes(x = Tempin,ymin=lower, ymax=upper),fill = "blue", linetype=1.5, alpha=0.1)+
-  geom_point(data = Cdata[Cdata$Site=='W',], aes(x = Tempin, y = TAdiff), alpha = 0.1) +
+  geom_line(aes(x = Tempin, y = estimate), lwd = 1, color = "grey")+
+  geom_ribbon(aes(x = Tempin,ymin=lower, ymax=upper),fill = "grey", linetype=1.5, alpha=0.3)+
+  geom_point(data = Cdata[Cdata$Site=='W',], aes(x = Tempin, y = TAdiff, color = pH)) +
   xlab(expression(atop("Temperature",paste("(", degree, "C)"))))+
   ylab(expression(atop("Net Ecosystem Calcification",paste("(",Delta, "TA/2 ", mu,"mol kg"^-1, ")"))))+
-  theme_minimal()
+  scale_color_gradient(low = "peachpuff", high = "sienna", name = expression("pH"[t]))+
+  labs(title = "Model 5")+
+  theme_minimal()+
+  #  facet_wrap(~Season)+
+  theme(plot.title = element_text(hjust = 0.5, size = 14), legend.position = 'bottom',
+        legend.box = "horizontal")+
+  guides(colour = guide_colourbar(title.position="top", title.hjust = 0.5))
 
-WR1+WR2+WR3+WR4+WR5+WR6+WR7+WR8+
-  plot_annotation(title = 'Marginal Effects for all Wailupe Models', tag_levels = "A")+
-  plot_layout(guides = "collect")+
-  ggsave("Output/marginaleffects_Wailupe.pdf", width = 12, height = 10)
+# Bring it together in patchwork
+(WR1|WR2)/(WR3|WR6)/(WR4|WR5)/(WR7|WR8)+plot_layout(guides = "collect")+
+  plot_annotation(tag_levels = "A")+
+  ggsave("Output/marginaleffects_Wailupe.pdf", width = 10, height = 15, useDingbats = FALSE)
+
 
 ## get the posterior
 Wpost <- posterior_samples(W_fit_brms)
 
-
+# Get and plot the coefficients for both Wailupe and Black Point
 WCof<-Wpost %>% 
   select(starts_with("b"),-ends_with("Intercept")) %>%
   gather() %>% 
@@ -910,7 +757,7 @@ WCof<-Wpost %>%
   ##Bind with the Black Point coefficients
   bind_rows(BPCof)
 
-
+#Make the plot
 CoefPlot<-WCof%>%
   ggplot(aes(x = value, y = reorder(independent, value), alpha = sig, color = Site)) +  # note how we used `reorder()` to arrange the coefficients
   geom_vline(xintercept = 0, alpha = 1/10, color = 'firebrick4') +
@@ -931,8 +778,7 @@ CoefPlot<-WCof%>%
         legend.position = "bottom",
         strip.background = element_blank(),
         strip.text = element_text(size = 14, face = "bold")
-    #    panel.background = element_rect(fill = "gray88")
-        )+
+            )+
   facet_grid(~dependent, scales = "free_y", space='free')+
   ggplot2::ggsave("Output/coefficientsBoth.pdf", width = 10, height = 5, useDingbats = FALSE)
 
@@ -994,219 +840,6 @@ WCof3<-Wpost %>%
         panel.grid.major.y = element_line(color = alpha("firebrick4", 1/4), linetype = 3),
         axis.text.y  = element_text(hjust = 0),
         axis.ticks.y = element_blank())
-
-WCof1+WCof2+WCof3+
-  plot_annotation(title = 'Standardized coefficients for Wailupe', tag_levels = "A")+
-  ggsave("Output/coefficientsWailupe.png", width = 10, height = 7)
-
-# ## Plot of BP and Wailupe coefficients together
-# Cof1/WCof1+plot_annotation(tag_levels = "A")+
-#   ggplot2::ggsave("Output/coefficientsBoth.pdf", width = 10, height = 10, useDingbats = FALSE)
-# 
-# Cof1+Cof2+Cof3+
-#   plot_annotation(title = 'Standardized coefficients for Black Point', tag_levels = "A")+
-#   ggsave("Output/coefficients_BlackPoint.png", width = 10, height = 7)
-
-# pull out the estimates and set it up to join with the DAG
-Westimates1<-data.frame(fixef(W_fit_brms)) %>%
-  rownames_to_column(var = "name")%>%
-  separate(name, into = c("to","name"), sep = "_") %>%
-  select(name, to, 3:6) %>%
-  filter(name != 'Intercept', to != 'DICdiffstd', to !="Tempinstd") # remove the intercepts and interaction terms (Calculated below) for the DAG
-
-## pull out temp to DIC
-Westimates<-data.frame(fixef(W_fit_brms)) %>%
-  rownames_to_column(var = "name")%>%
-  separate(name, into = c("to","name"), sep = "_") %>%
-  select(name, to, 3:6) %>%
-  filter(to == 'DICdiffstd', name =="Tempinstd")%>% # remove the intercepts and interaction terms (Calculated below) for the DAG
-  bind_rows(Westimates1)
-
-
-### deal with interaction terms. First for DIC models
-WInteractionsDIC<-Wpost %>%
-  transmute(logNNstd_Night_Fall_High    = `b_DICdiffstd_logNNstd` + `b_DICdiffstd_DayNightNight:logNNstd`,
-            logNNstd_Day_Fall_High = `b_DICdiffstd_logNNstd`,
-            
-            logNNstd_Night_Fall_Low    = `b_DICdiffstd_logNNstd` + `b_DICdiffstd_DayNightNight:logNNstd` +`b_DICdiffstd_TideLowTide:logNNstd` +`b_DICdiffstd_TideLowTide:DayNightNight:logNNstd`,
-            logNNstd_Day_Fall_Low = `b_DICdiffstd_logNNstd`+`b_DICdiffstd_TideLowTide:logNNstd`,
-            
-            logNNstd_Night_Spring_High    = `b_DICdiffstd_logNNstd` + `b_DICdiffstd_DayNightNight:logNNstd` + `b_DICdiffstd_logNNstd:SeasonSpring` +`b_DICdiffstd_DayNightNight:logNNstd:SeasonSpring`,
-            logNNstd_Day_Spring_High = `b_DICdiffstd_logNNstd`+ `b_DICdiffstd_logNNstd:SeasonSpring`,
-            
-            logNNstd_Night_Spring_Low    = `b_DICdiffstd_logNNstd` + `b_DICdiffstd_DayNightNight:logNNstd` + `b_DICdiffstd_logNNstd:SeasonSpring`+`b_DICdiffstd_TideLowTide:logNNstd` +`b_DICdiffstd_TideLowTide:DayNightNight:logNNstd:SeasonSpring`+`b_DICdiffstd_TideLowTide:logNNstd:SeasonSpring`+`b_DICdiffstd_DayNightNight:logNNstd:SeasonSpring`+`b_DICdiffstd_TideLowTide:DayNightNight:logNNstd`,
-            logNNstd_Day_Spring_Low = `b_DICdiffstd_logNNstd`+ `b_DICdiffstd_logNNstd:SeasonSpring`+`b_DICdiffstd_TideLowTide:logNNstd` +`b_DICdiffstd_TideLowTide:logNNstd:SeasonSpring`
-            
-  ) %>%
-  gather(key, value) %>%
-  group_by(key) %>%
-  summarise(Estimate = mean(value), Est.Error = sd(value),
-            Q2.5 = mean(value) - qt(1- 0.05/2, (n() - 1))*sd(value)/sqrt(n()),
-            Q97.5 = mean(value) + qt(1- 0.05/2, (n() - 1))*sd(value)/sqrt(n())) %>%
-  separate(key, into = c("name", "DayNight", "Season", "Tide")) %>%
-  mutate(to = "DICdiffstd") %>%
-  select(name,to, 2:8)
-
-
-# Interactions temp SGD
-WInteractionsSGD<-Wpost %>%
-  transmute(
-    logSGDstd_Day_Spring_Both = `b_Tempinstd_logSGDstd` +`b_Tempinstd_logSGDstd:SeasonSpring`,
-    logSGDstd_Night_Spring_Both = `b_Tempinstd_logSGDstd` +`b_Tempinstd_logSGDstd:SeasonSpring` +`b_Tempinstd_DayNightNight:logSGDstd`+`b_Tempinstd_DayNightNight:logSGDstd:SeasonSpring`,
-    logSGDstd_Day_Fall_Both = `b_Tempinstd_logSGDstd`,
-    logSGDstd_Night_Fall_Both = `b_Tempinstd_logSGDstd`+`b_Tempinstd_DayNightNight:logSGDstd`
-    
-  ) %>%
-  gather(key, value) %>%
-  group_by(key) %>%
-  summarise(Estimate = mean(value), Est.Error = sd(value),
-            Q2.5 = mean(value) - qt(1- 0.05/2, (n() - 1))*sd(value)/sqrt(n()),
-            Q97.5 = mean(value) + qt(1- 0.05/2, (n() - 1))*sd(value)/sqrt(n())) %>%
-  separate(key, into = c("name", "DayNight", "Season", "Tide")) %>%
-  mutate(to = "Tempinstd") %>%
-  select(name,to, 2:8)
-
-#Bind everything together
-Westimates<-bind_rows(Westimates, WInteractionsDIC, WInteractionsSGD) %>% # bind with the estimates above
-  mutate(DayNight = replace_na(DayNight, "Both"),
-         Season = replace_na(Season, "Both"),
-         Tide = replace_na(Tide, "Both") )
-
-# join it with the estimates so that I can add colors and line thickness to related to effectsize
-WDAGdata<-bigger_dag %>%
-  dag_paths() %>% #### then left join these with the effect sizes
-  as_tibble() %>%
-  left_join(Westimates) %>%
-  mutate(DayNight = replace_na(DayNight, "Both"),
-         Season = replace_na(Season, "Both"),
-         Tide = replace_na(Tide, "Both")
-  )%>%
-  mutate(est_sign = as.character(sign(Estimate)))%>% # add a column for pos and negative
-  mutate(edge_cols = case_when(est_sign == '-1' ~ "#d6604d",#"#fc8d59", 
-                               est_sign == '1' ~ "#4393c3")) %>%
-  mutate(edge_lines = ifelse(sign(Q2.5)==sign(Q97.5),1,2),# add a dashed or solid line for significant effects (i.e. 95%CI does not overlap 0)
-         edge_alpha = ifelse(sign(Q2.5)==sign(Q97.5),1,0.1)# make non-significant transparent
-  ) 
-
-#Day Spring High DAG
-WDaySpringHigh_DAG<-WDAGdata %>% 
-  filter(DayNight %in% c("Both", "Day"), Season %in% c("Both", "Spring"), Tide %in% c("Both", "High"))%>%
-  ggplot(aes(x = x, y = y, xend = xend, yend = yend)) +
-  geom_dag_edges(aes(edge_width = abs(Estimate), 
-                     edge_colour = edge_cols, 
-                     #edge_linetype = edge_lines,
-                     edge_alpha = edge_alpha)) +
-  geom_dag_node() +
-  geom_dag_text_repel(aes(label = label))+
-  theme_dag() +
-  ggtitle('Spring Daytime High Tide')+
-  theme(plot.title = element_text(hjust = 0.5))
-
-#Day Spring Low DAG
-WDaySpringLow_DAG<-WDAGdata %>% 
-  filter(DayNight %in% c("Both", "Day"), Season %in% c("Both", "Spring"), Tide %in% c("Both", "Low"))%>%
-  ggplot(aes(x = x, y = y, xend = xend, yend = yend)) +
-  geom_dag_edges(aes(edge_width = abs(Estimate), 
-                     edge_colour = edge_cols, 
-                     #edge_linetype = edge_lines,
-                     edge_alpha = edge_alpha)) +
-  geom_dag_node() +
-  geom_dag_text_repel(aes(label = label))+
-  theme_dag() +
-  ggtitle('Spring Daytime Low Tide')+
-  theme(plot.title = element_text(hjust = 0.5))
-
-#Night Spring High DAG
-WNightSpringHigh_DAG<-WDAGdata %>% 
-  filter(DayNight %in% c("Both", "Night"), Season %in% c("Both", "Spring"), Tide %in% c("Both", "High"))%>%
-  ggplot(aes(x = x, y = y, xend = xend, yend = yend)) +
-  geom_dag_edges(aes(edge_width = abs(Estimate), 
-                     edge_colour = edge_cols, 
-                     #edge_linetype = edge_lines,
-                     edge_alpha = edge_alpha)) +
-  geom_dag_node() +
-  geom_dag_text_repel(aes(label = label))+
-  theme_dag() +
-  ggtitle('Spring Nighttime High Tide')+
-  theme(plot.title = element_text(hjust = 0.5))
-
-#Night Spring Low DAG
-WNightSpringLow_DAG<-WDAGdata %>% 
-  filter(DayNight %in% c("Both", "Night"), Season %in% c("Both", "Spring"), Tide %in% c("Both", "Low"))%>%
-  ggplot(aes(x = x, y = y, xend = xend, yend = yend)) +
-  geom_dag_edges(aes(edge_width = abs(Estimate), 
-                     edge_colour = edge_cols, 
-                     #edge_linetype = edge_lines,
-                     edge_alpha = edge_alpha)) +
-  geom_dag_node() +
-  geom_dag_text_repel(aes(label = label))+
-  theme_dag() +
-  ggtitle('Spring Nighttime Low Tide')+
-  theme(plot.title = element_text(hjust = 0.5))
-
-#Day Fall High DAG
-WDayFallHigh_DAG<-WDAGdata %>% 
-  filter(DayNight %in% c("Both", "Day"), Season %in% c("Both", "Fall"), Tide %in% c("Both", "High"))%>%
-  ggplot(aes(x = x, y = y, xend = xend, yend = yend)) +
-  geom_dag_edges(aes(edge_width = abs(Estimate), 
-                     edge_colour = edge_cols, 
-                     #edge_linetype = edge_lines,
-                     edge_alpha = edge_alpha)) +
-  geom_dag_node() +
-  geom_dag_text_repel(aes(label = label))+
-  theme_dag() +
-  ggtitle('Fall Daytime High Tide')+
-  theme(plot.title = element_text(hjust = 0.5))
-
-#Day Fall Low DAG
-WDayFallLow_DAG<-WDAGdata %>% 
-  filter(DayNight %in% c("Both", "Day"), Season %in% c("Both", "Fall"), Tide %in% c("Both", "Low"))%>%
-  ggplot(aes(x = x, y = y, xend = xend, yend = yend)) +
-  geom_dag_edges(aes(edge_width = abs(Estimate), 
-                     edge_colour = edge_cols, 
-                     #edge_linetype = edge_lines,
-                     edge_alpha = edge_alpha)) +
-  geom_dag_node() +
-  geom_dag_text_repel(aes(label = label))+
-  theme_dag() +
-  ggtitle('Fall Daytime Low Tide')+
-  theme(plot.title = element_text(hjust = 0.5))
-
-#Night Fall High DAG
-WNightFallHigh_DAG<-WDAGdata %>% 
-  filter(DayNight %in% c("Both", "Night"), Season %in% c("Both", "Fall"), Tide %in% c("Both", "High"))%>%
-  ggplot(aes(x = x, y = y, xend = xend, yend = yend)) +
-  geom_dag_edges(aes(edge_width = abs(Estimate), 
-                     edge_colour = edge_cols, 
-                     #edge_linetype = edge_lines,
-                     edge_alpha = edge_alpha)) +
-  geom_dag_node() +
-  geom_dag_text_repel(aes(label = label))+
-  theme_dag() +
-  ggtitle('Fall Nighttime High Tide')+
-  theme(plot.title = element_text(hjust = 0.5)) 
-
-#Night Fall Low DAG
-WNightFallLow_DAG<-WDAGdata %>% 
-  filter(DayNight %in% c("Both", "Night"), Season %in% c("Both", "Fall"), Tide %in% c("Both", "Low"))%>%
-  ggplot(aes(x = x, y = y, xend = xend, yend = yend)) +
-  geom_dag_edges(aes(edge_width = abs(Estimate), 
-                     edge_colour = edge_cols, 
-                     #edge_linetype = edge_lines,
-                     edge_alpha = edge_alpha)) +
-  geom_dag_node() +
-  geom_dag_text_repel(aes(label = label))+
-  theme_dag() +
-  ggtitle('Fall Nighttime Low Tide')+
-  theme(plot.title = element_text(hjust = 0.5)) 
-
-DAGPlot_WHigh<- (WDaySpringHigh_DAG +WNightSpringHigh_DAG)/(WDayFallHigh_DAG +WNightFallHigh_DAG)+
-  plot_annotation(tag_levels = "A",title = "Wailupe")+
-  ggsave("Output/DAGplotsWHigh.pdf", width = 12, height = 13, useDingbats = FALSE)
-
-DAGPlot_WLow<- (WDaySpringLow_DAG +WNightSpringLow_DAG)/(WDayFallLow_DAG +WNightFallLow_DAG)+
-  plot_annotation(tag_levels = "A",title = "Wailupe")+
-  ggsave("Output/DAGplotsWLow.pdf", width = 12, height = 13, useDingbats = FALSE)
 
 ######################## Make some summary tables #############
 Cdata %>%
