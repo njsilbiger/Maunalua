@@ -195,9 +195,9 @@ R1<-R$logNNstd.logNNstd_logSGDstd %>% # back transform the scaled effects for th
   geom_line(aes(x = exp(logSGD), y = exp(estimate)), lwd = 1, color = 'grey')+
   geom_ribbon(aes(x = exp(logSGD),ymin=exp(lower), ymax=exp(upper)), linetype=1.5, alpha=0.3, fill = "grey")+
   geom_point(data = Cdata[Cdata$Site=='BP',], aes(x = percentsgd, y = NN)) +
-  xlab("Percent SGD")+
-  ylab(expression(atop("Nitrate + Nitrite", paste("(mmol L"^-1,")"))))+
-#  ggtitle("N+N ~ % SGD")+
+  xlab("% SGD")+
+  ylab(expression(atop("Nitrate + Nitrite", paste("(",mu, "mol L"^-1,")"))))+
+  ggtitle("Model 1")+
   coord_trans(x="log", y="log")+
   scale_x_continuous(breaks = c(0.2,1,5,10,25))+
   scale_y_continuous(breaks = c(0,0.1,1,5,10,30))+
@@ -215,13 +215,13 @@ R2<-R$`Tempinstd.Tempinstd_logSGDstd:DayNight`%>%
   geom_line(aes(x = exp(logSGD), y = estimate, lty = DayNight, group = DayNight), lwd = 1, color = "grey")+
   geom_ribbon(aes(x = exp(logSGD),ymin=lower, ymax=upper, group = DayNight), linetype=1.5, alpha=0.3, fill = "grey")+
   geom_point(data = Cdata[Cdata$Site=='BP',], aes(x = percentsgd, y = Tempin, shape = DayNight) ) +
-  xlab("Percent SGD")+
+  xlab("% SGD")+
   ylab(expression(atop("Temperature",paste("(", degree, "C)"))))+
   scale_shape_manual(values=c(0,15), name = "")+
   scale_linetype_manual(values = c(1,2),name = "")+
   coord_trans(x="log")+
   scale_x_continuous(breaks = c(0.2,1,5,10,25))+
- # ggtitle("Temperature ~ % SGD * Day/Night")+
+  ggtitle("Model 2")+
   theme_minimal()+
   theme(plot.title = element_text(hjust = 0.5, size = 14), legend.position = 'bottom')+
   facet_wrap(~Season)
@@ -239,14 +239,14 @@ R3<-R$pHstd.pHstd_logSGDstd %>%
   geom_line(aes(x = exp(logSGD), y = estimate), color = "grey", lwd = 1)+
   geom_ribbon(aes(x = exp(logSGD),ymin=lower, ymax=upper), fill = "grey", linetype=1.5, alpha=0.3)+
   geom_point(data = Cdata[Cdata$Site=='BP',], aes(x = percentsgd, y = pH, color = DICdiff)) +
-  xlab("Percent SGD")+
+  xlab("% SGD")+
   ylab(expression("pH"[t]))+
-  ylim(7.8,8.4)+
-  labs(#title = expression(paste('pH ~ ',bold('% SGD'), ' + NEP')),
+  scale_y_continuous(limits = c(7.8, 8.4), breaks = seq(7.8, 8.4, by = 0.2))+
+  labs(title = 'Model 3',
        color = "NEP")+
   coord_trans(x="log")+
   scale_color_gradient2(low = "#D8B365",
-                         mid = "white",
+                         mid = "gray88",
                          high = "#5AB4AC",
                          midpoint = 0)+
   scale_x_continuous(breaks = c(0.2,1,5,10,25))+
@@ -269,8 +269,8 @@ R6<-R$pHstd.pHstd_DICdiffstd%>%
   scale_color_gradient(name = "% SGD", trans = "log", breaks =c(0.2,1,5,10))+
   xlab(expression(atop("Net Ecosystem Production", paste("(", Delta, "DIC ", mu,"mol kg"^-1, ")"))))+
   ylab(expression("pH"[t]))+
-  ylim(7.8,8.4)+
-#  labs(title = expression(paste('pH ~ % SGD + ', bold('NEP'))))+
+  scale_y_continuous(limits = c(7.8, 8.4), breaks = seq(7.8, 8.4, by = 0.2))+
+  labs(title = "Model 3")+
   theme_minimal()+
   theme(plot.title = element_text(hjust = 0.5, size = 14), legend.position = 'bottom',
         legend.box = "horizontal")+
@@ -298,8 +298,9 @@ R4<-R$`DICdiffstd.DICdiffstd_logNNstd:DayNight`%>%
   scale_shape_manual(values=c(0,15), name = "")+
   scale_linetype_manual(values = c(1,2),name = "")+
   scale_x_continuous(breaks = c(0,0.1,1,5,30))+
+  scale_y_continuous(limits = c(-200, 400), breaks = seq(-200, 500, by = 200))+
   scale_color_gradient(low = "blue", high = "red", name = "Temperature")+
-#  labs(title = expression(paste('NEP ~ ', bold('NN*Day/Night*Season '), '+ Temperature')))+
+  labs(title = "Model 4")+
   theme_minimal()+
   facet_wrap(~Tide)+
   theme(plot.title = element_text(hjust = 0.5, size = 14), legend.position = 'bottom',
@@ -326,8 +327,8 @@ R5<-R$`DICdiffstd.DICdiffstd_Tempinstd:Season`%>%
   xlab(expression(atop("Temperature",paste("(", degree, "C)"))))+
   ylab(expression(atop("Net Ecosystem Production", paste("(", Delta, "DIC ", mu,"mol kg"^-1, ")"))))+
   scale_color_gradient(name = "N+N", trans = "log", breaks =c(0.1,1,5,30), low = "lightgreen", high = "darkgreen")+
-#  labs(title = expression(paste('NEP ~ NN*Day/Night*Season ', bold('+ Temperature'))))+
-#  ylim(-200,400)+
+  labs(title = 'Model 4')+
+  scale_y_continuous(limits = c(-200, 400), breaks = seq(-200, 500, by = 200))+
   theme_minimal()+
   facet_wrap(~Season)+
   theme(plot.title = element_text(hjust = 0.5, size = 14), legend.position = 'bottom',
@@ -351,7 +352,7 @@ R7<-R$`TAdiffstd.TAdiffstd_pHstd`%>%
   xlab(expression("pH"[t]))+
   ylab(expression(atop("Net Ecosystem Calcification",paste("(",Delta, "TA/2 ", mu,"mol kg"^-1, ")"))))+
   scale_color_gradient(low = "blue", high = "red", name = "Temperature")+
- # labs(title = expression(paste('NEC ~ ', bold('pH'), ' + Temperature')))+
+  labs(title = 'Model 5')+
   theme_minimal()+
 #  facet_wrap(~Season)+
   theme(plot.title = element_text(hjust = 0.5, size = 14), legend.position = 'bottom',
@@ -375,8 +376,8 @@ R8<-R$`TAdiffstd.TAdiffstd_Tempinstd`%>%
   geom_point(data = Cdata[Cdata$Site=='BP',], aes(x = Tempin, y = TAdiff, color = pH)) +
   xlab(expression(atop("Temperature",paste("(", degree, "C)"))))+
   ylab(expression(atop("Net Ecosystem Calcification",paste("(",Delta, "TA/2 ", mu,"mol kg"^-1, ")"))))+
-  scale_color_gradient(low = "yellow", high = "orange", name = expression("pH"[t]))+
- # labs(title = expression(paste('NEC ~ pH + ', bold('Temperature'))))+
+  scale_color_gradient(low = "peachpuff", high = "sienna", name = expression("pH"[t]))+
+  labs(title = "Model 5")+
   theme_minimal()+
 #  facet_wrap(~Season)+
   theme(plot.title = element_text(hjust = 0.5, size = 14), legend.position = 'bottom',
@@ -384,32 +385,38 @@ R8<-R$`TAdiffstd.TAdiffstd_Tempinstd`%>%
   guides(colour = guide_colourbar(title.position="top", title.hjust = 0.5))
 
 
-R1+R2+R3+R4+R5+R6+R7+R8+
-  plot_annotation(title = 'Marginal Effects for all Black Point Models', tag_levels = "A")+
-  plot_layout(guides = "collect")+
-  ggsave("Output/marginaleffects_BlackPoint.pdf", width = 12, height = 10)
+# R1+R2+R3+R4+R5+R6+R7+R8+
+#   plot_annotation(title = 'Marginal Effects for all Black Point Models', tag_levels = "A")+
+#   plot_layout(guides = "collect")+
+#   ggsave("Output/marginaleffects_BlackPoint.pdf", width = 12, height = 10)
 
 (R1|R2)/(R3|R6)/(R4|R5)/(R7|R8)+plot_layout(guides = "collect")+
   plot_annotation(tag_levels = "A")+
-  ggsave("test.pdf", width = 11, height = 15, useDingbats = FALSE)
+  ggsave("Output/marginaleffects_BlackPoint.pdf", width = 10, height = 15, useDingbats = FALSE)
 
 ## get the posterior
 post <- posterior_samples(k_fit_brms)
 
 # plot the coefficients
-Cof1<-post %>% 
+BPCof<-post %>% 
   select(starts_with("b"),-ends_with("Intercept")) %>%
   gather() %>% 
   group_by(key)%>%
   median_hdci()%>%
   mutate(sig = ifelse(sign(.lower)==sign(.upper),'yes','no'))%>%# if not significant make it grey
   separate(col = key,into = c("b", "dependent", "independent"),sep = "_")%>% #loose the b and bring the values back together
-  mutate(key = paste(dependent, independent))%>%
-  ggplot(aes(x = value, y = reorder(key, value), color = sig)) +  # note how we used `reorder()` to arrange the coefficients
+ # mutate(key = paste(dependent, independent))%>%
+  mutate(dependent = factor(dependent, levels = c("logNNstd","Tempinstd","pHstd","DICdiffstd","TAdiffstd")))%>%
+  mutate(dependent  = recode(dependent, logNNstd = "NN", Tempinstd = "Temperature", pHstd = "pH", DICdiffstd = "NEP", TAdiffstd  ="NEC"),
+         Site = "Black Point") 
+
+Cof1<- BPCof %>%
+ ggplot(aes(x = value, y = reorder(independent, value), alpha = sig, color = "firebrick4")) +  # note how we used `reorder()` to arrange the coefficients
   geom_vline(xintercept = 0, alpha = 1/10, color = 'firebrick4') +
   geom_point()+
   geom_errorbarh(aes(xmin = .lower, xmax = .upper), height = 0)+
-  scale_color_manual(values = c("grey","firebrick4"))+
+  scale_alpha_manual(values = c(0.2,1))+
+  scale_color_manual(values = "firebrick4")+
   # stat_pointintervalh(point_interval = mode_hdi, .width = .95, 
   #                     size = 3/4, color = "firebrick4") +
   labs(title = "Black Point",
@@ -419,7 +426,8 @@ Cof1<-post %>%
         panel.grid.major.y = element_line(color = alpha("firebrick4", 1/4), linetype = 3),
         axis.text.y  = element_text(hjust = 0),
         axis.ticks.y = element_blank(),
-        legend.position = "none")
+        legend.position = "none")+
+  facet_grid(~dependent, scales = "free_y", space='free')
 
 # plot the intercepts
 Cof2<-post %>% 
@@ -887,6 +895,48 @@ WR1+WR2+WR3+WR4+WR5+WR6+WR7+WR8+
 ## get the posterior
 Wpost <- posterior_samples(W_fit_brms)
 
+
+WCof<-Wpost %>% 
+  select(starts_with("b"),-ends_with("Intercept")) %>%
+  gather() %>% 
+  group_by(key)%>%
+  median_hdci()%>%
+  mutate(sig = ifelse(sign(.lower)==sign(.upper),'yes','no'))%>%# if not significant make it grey
+  separate(col = key,into = c("b", "dependent", "independent"),sep = "_")%>% #loose the b and bring the values back together
+  # mutate(key = paste(dependent, independent))%>%
+  mutate(dependent = factor(dependent, levels = c("logNNstd","Tempinstd","pHstd","DICdiffstd","TAdiffstd")))%>%
+  mutate(dependent  = recode(dependent, logNNstd = "NN", Tempinstd = "Temperature", pHstd = "pH", DICdiffstd = "NEP", TAdiffstd  ="NEC"),
+         Site = "Wailupe") %>%
+  ##Bind with the Black Point coefficients
+  bind_rows(BPCof)
+
+
+CoefPlot<-WCof%>%
+  ggplot(aes(x = value, y = reorder(independent, value), alpha = sig, color = Site)) +  # note how we used `reorder()` to arrange the coefficients
+  geom_vline(xintercept = 0, alpha = 1/10, color = 'firebrick4') +
+  geom_point(size = 2)+
+  geom_errorbarh(aes(xmin = .lower, xmax = .upper), height = 0)+
+  scale_alpha_manual(values = c(0.2,1))+
+  scale_color_manual(values = c("firebrick4", "orange"), name = " ")+
+  # stat_pointintervalh(point_interval = mode_hdi, .width = .95, 
+  #                     size = 3/4, color = "firebrick4") +
+  labs(#title = "Black Point",
+       x = NULL, y = NULL) +
+  theme_bw() +
+  guides(alpha = FALSE)+
+  theme(panel.grid   = element_blank(),
+        panel.grid.major.y = element_line(color = alpha("firebrick4", 1/4), linetype = 3),
+        axis.text.y  = element_text(hjust = 0),
+        axis.ticks.y = element_blank(),
+        legend.position = "bottom",
+        strip.background = element_blank(),
+        strip.text = element_text(size = 14, face = "bold")
+    #    panel.background = element_rect(fill = "gray88")
+        )+
+  facet_grid(~dependent, scales = "free_y", space='free')+
+  ggplot2::ggsave("Output/coefficientsBoth.pdf", width = 10, height = 5, useDingbats = FALSE)
+
+
 # plot the coefficients
 WCof1<-Wpost %>% 
   select(starts_with("b"),-ends_with("Intercept")) %>%
@@ -949,13 +999,13 @@ WCof1+WCof2+WCof3+
   plot_annotation(title = 'Standardized coefficients for Wailupe', tag_levels = "A")+
   ggsave("Output/coefficientsWailupe.png", width = 10, height = 7)
 
-## Plot of BP and Wailupe coefficients together
-Cof1/WCof1+plot_annotation(tag_levels = "A")+
-  ggplot2::ggsave("Output/coefficientsBoth.pdf", width = 10, height = 10, useDingbats = FALSE)
-
-Cof1+Cof2+Cof3+
-  plot_annotation(title = 'Standardized coefficients for Black Point', tag_levels = "A")+
-  ggsave("Output/coefficients_BlackPoint.png", width = 10, height = 7)
+# ## Plot of BP and Wailupe coefficients together
+# Cof1/WCof1+plot_annotation(tag_levels = "A")+
+#   ggplot2::ggsave("Output/coefficientsBoth.pdf", width = 10, height = 10, useDingbats = FALSE)
+# 
+# Cof1+Cof2+Cof3+
+#   plot_annotation(title = 'Standardized coefficients for Black Point', tag_levels = "A")+
+#   ggsave("Output/coefficients_BlackPoint.png", width = 10, height = 7)
 
 # pull out the estimates and set it up to join with the DAG
 Westimates1<-data.frame(fixef(W_fit_brms)) %>%
