@@ -134,7 +134,7 @@ colnames(Cdata)<-str_replace_all(colnames(Cdata), "[^[:alnum:]]", "")
 NN_mod<-bf(logNNstd ~ logSGDstd) # NN ~ SGD which can change by site
 Temp_mod<-bf(Tempinstd ~ DayNight*logSGDstd*Season) ## SGD has cooler water and the intercept changes with season
 #PO_mod<-bf(logPOstd ~ logSGDstd) # PO ~ SGD which can change by site
-DIC_mod <- bf(DICdiffstd ~ (Tide*DayNight*logNNstd*Season +Tempinstd)) # DIC ~ nutrients and temperature, which can change by day/night (i.e. high nutrients could lead to high P during the day and high R at night what have opposite signs). It is also non-linear
+DIC_mod <- bf(DICdiffstd ~ DayNight*Tide*logNNstd +Season*Tempinstd) # DIC ~ nutrients and temperature, which can change by day/night (i.e. high nutrients could lead to high P during the day and high R at night what have opposite signs). It is also non-linear
 pH_mod <- bf(pHstd ~ DICdiffstd + logSGDstd) # pH ~ NEP + SGD
 TA_mod<-bf(TAdiffstd ~ pHstd+Tempinstd) # NEC ~ pH and temperature, which can change by Tide, because low has more nutrients it may distrupt this relationship (based on Silbiger et al. 2018)
 
@@ -173,6 +173,7 @@ p4<-pp_check(k_fit_brms, resp="TAdiffstd") +
 p5<-pp_check(k_fit_brms, resp="Tempinstd") +
   scale_color_manual(values=c("red", "black"))+
   ggtitle("Temperature")
+
 
 # view everything together using patchwork
 p1+p2+p3+p4+p5+plot_layout(guides = "collect") +
@@ -278,7 +279,7 @@ R6<-R$pHstd.pHstd_DICdiffstd%>%
 #Bring together the pH models
 #pHplot<-R3+R6&plot_annotation(title = "pH ~ %SGD + NEP")&theme(plot.title = element_text(hjust = 0.5, size = 16))
 
-conditions <- make_conditions(k_fit_brms, c("Tide","Season")) # for the three way interaction
+conditions <- make_conditions(k_fit_brms, c("Tide")) # for the three way interaction
 
 R<-conditional_effects(k_fit_brms, "logNNstd:DayNight",conditions = conditions,  resp = "DICdiffstd", method = "predict", resolution = 1000)
 R4<-R$`DICdiffstd.DICdiffstd_logNNstd:DayNight`%>%
@@ -300,7 +301,7 @@ R4<-R$`DICdiffstd.DICdiffstd_logNNstd:DayNight`%>%
   scale_color_gradient(low = "blue", high = "red", name = "Temperature")+
 #  labs(title = expression(paste('NEP ~ ', bold('NN*Day/Night*Season '), '+ Temperature')))+
   theme_minimal()+
-  facet_wrap(~Tide*Season)+
+  facet_wrap(~Tide)+
   theme(plot.title = element_text(hjust = 0.5, size = 14), legend.position = 'bottom',
         legend.box = "horizontal")+
   guides(colour = guide_colourbar(title.position="top", title.hjust = 0.5))
@@ -308,35 +309,41 @@ R4<-R$`DICdiffstd.DICdiffstd_logNNstd:DayNight`%>%
 
 conditions <- make_conditions(k_fit_brms, "Season") # for the three way interaction
 
-R<-conditional_effects(k_fit_brms, "Tempinstd", resp = "DICdiffstd",  method = "predict", resolution = 1000)
-R5<-R$`DICdiffstd.DICdiffstd_Tempinstd`%>%
+R<-conditional_effects(k_fit_brms, "Tempinstd:Season", resp = "DICdiffstd",  method = "predict", resolution = 1000)
+R5<-R$`DICdiffstd.DICdiffstd_Tempinstd:Season`%>%
   mutate(estimate = estimate__*attr(Cdata$DICdiffstd,"scaled:scale")+attr(Cdata$DICdiffstd,"scaled:center"),
          lower = lower__*attr(Cdata$DICdiffstd,"scaled:scale")+attr(Cdata$DICdiffstd,"scaled:center"),
          upper = upper__*attr(Cdata$DICdiffstd,"scaled:scale")+attr(Cdata$DICdiffstd,"scaled:center"),
          Tempin = Tempinstd*attr(Cdata$Tempinstd,"scaled:scale")+attr(Cdata$Tempinstd,"scaled:center")
-  )%>%
+  )%>% ## only select the actual data to plot over so it does not over predict
+  mutate(keep = case_when(Season == 'Spring' & Tempin <27 ~1,
+                          Season == 'Fall' & Tempin >26 ~1))%>%
+  filter(keep == 1)%>%
   ggplot()+
   geom_line(aes(x = Tempin, y = estimate, group = Season), lwd = 1, color = "grey")+
-  geom_ribbon(aes(x = Tempin,ymin=lower, ymax=upper, group = Season), linetype=1.5, alpha=0.3, fill = "grey")+
+  geom_ribbon(aes(x = Tempin, ymin=lower, ymax=upper, group = Season), linetype=1.5, alpha=0.3, fill = "grey")+
   geom_point(data = Cdata[Cdata$Site=='BP',], aes(x = Tempin, y = DICdiff, color = NN)) +
   xlab(expression(atop("Temperature",paste("(", degree, "C)"))))+
   ylab(expression(atop("Net Ecosystem Production", paste("(", Delta, "DIC ", mu,"mol kg"^-1, ")"))))+
   scale_color_gradient(name = "N+N", trans = "log", breaks =c(0.1,1,5,30), low = "lightgreen", high = "darkgreen")+
 #  labs(title = expression(paste('NEP ~ NN*Day/Night*Season ', bold('+ Temperature'))))+
-  ylim(-200,400)+
+#  ylim(-200,400)+
   theme_minimal()+
+  facet_wrap(~Season)+
   theme(plot.title = element_text(hjust = 0.5, size = 14), legend.position = 'bottom',
         legend.box = "horizontal")+
   guides(colour = guide_colourbar(title.position="top", title.hjust = 0.5))
 
-
 R<-conditional_effects(k_fit_brms, "pHstd", resp = "TAdiffstd", method = "predict", resolution = 1000)
-R7<-R$TAdiffstd.TAdiffstd_pHstd%>%
+R7<-R$`TAdiffstd.TAdiffstd_pHstd`%>%
   mutate(estimate = estimate__*attr(Cdata$TAdiffstd,"scaled:scale")+attr(Cdata$TAdiffstd,"scaled:center"),
          lower = lower__*attr(Cdata$TAdiffstd,"scaled:scale")+attr(Cdata$TAdiffstd,"scaled:center"),
          upper = upper__*attr(Cdata$TAdiffstd,"scaled:scale")+attr(Cdata$TAdiffstd,"scaled:center"),
          pH = pHstd*attr(Cdata$pHstd,"scaled:scale")+attr(Cdata$pHstd,"scaled:center")
   )%>%
+  # mutate(keep = case_when(Season == 'Fall' & pH < 8.25 ~1,
+  #                         Season == 'Spring' ~1))%>%
+  # filter(keep == 1)%>%
   ggplot()+
   geom_line(aes(x = pH, y = estimate), lwd = 1, color = 'grey')+
   geom_ribbon(aes(x = pH,ymin=lower, ymax=upper), linetype=1.5, alpha=0.3, fill = "grey")+
@@ -346,18 +353,22 @@ R7<-R$TAdiffstd.TAdiffstd_pHstd%>%
   scale_color_gradient(low = "blue", high = "red", name = "Temperature")+
  # labs(title = expression(paste('NEC ~ ', bold('pH'), ' + Temperature')))+
   theme_minimal()+
+#  facet_wrap(~Season)+
   theme(plot.title = element_text(hjust = 0.5, size = 14), legend.position = 'bottom',
         legend.box = "horizontal")+
   guides(colour = guide_colourbar(title.position="top", title.hjust = 0.5))
 
 
 R<-conditional_effects(k_fit_brms, "Tempinstd", resp = "TAdiffstd", method = "predict", resolution = 1000)
-R8<-R$TAdiffstd.TAdiffstd_Tempinstd%>%
+R8<-R$`TAdiffstd.TAdiffstd_Tempinstd`%>%
   mutate(estimate = estimate__*attr(Cdata$TAdiffstd,"scaled:scale")+attr(Cdata$TAdiffstd,"scaled:center"),
          lower = lower__*attr(Cdata$TAdiffstd,"scaled:scale")+attr(Cdata$TAdiffstd,"scaled:center"),
          upper = upper__*attr(Cdata$TAdiffstd,"scaled:scale")+attr(Cdata$TAdiffstd,"scaled:center"),
          Tempin = Tempinstd*attr(Cdata$Tempinstd,"scaled:scale")+attr(Cdata$Tempinstd,"scaled:center")
   )%>%
+#  mutate(keep = case_when(Season == 'Spring' & Tempin <27 ~1,
+#                          Season == 'Fall' & Tempin >26 ~1))%>%
+#  filter(keep == 1)%>%
   ggplot()+
   geom_line(aes(x = Tempin, y = estimate), lwd = 1, color = "grey")+
   geom_ribbon(aes(x = Tempin,ymin=lower, ymax=upper),fill = "grey", linetype=1.5, alpha=0.3)+
@@ -367,6 +378,7 @@ R8<-R$TAdiffstd.TAdiffstd_Tempinstd%>%
   scale_color_gradient(low = "yellow", high = "orange", name = expression("pH"[t]))+
  # labs(title = expression(paste('NEC ~ pH + ', bold('Temperature'))))+
   theme_minimal()+
+#  facet_wrap(~Season)+
   theme(plot.title = element_text(hjust = 0.5, size = 14), legend.position = 'bottom',
         legend.box = "horizontal")+
   guides(colour = guide_colourbar(title.position="top", title.hjust = 0.5))
