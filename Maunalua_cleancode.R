@@ -867,3 +867,20 @@ Wparams<-fixef(W_fit_brms) %>%
 
 params <-left_join(BPparams, Wparams)%>%
   write.csv(file = "SummaryTables/param_estimates.csv", row.names = FALSE)
+
+## look at some values also by Day NIght and Zones as well
+
+Cdata %>%
+  select(Site, Zone, DayNight, Season, NN, pH, percentsgd,Salinity, Silicate,Tempin, DICdiff, TAdiff) %>%
+  group_by(Site, Zone, DayNight, Season)%>%
+  summarise_all(.funs = list(~mean(.))) %>%
+  pivot_longer(names_to = "Parameters", cols = "NN":"TAdiff") %>%
+  separate(Parameters, into = c("Parameters", "stat")) %>%
+  arrange(desc(Parameters)) %>%
+  pivot_wider(names_from = c(Site:Season, stat)) %>%
+  View()
+
+Cdata %>%
+  select(Site, DayNight, Season, Tide, NN) %>%
+  group_by(Site, DayNight, Tide, Season)%>%
+  summarise_all(.funs = list(~max(.)))
