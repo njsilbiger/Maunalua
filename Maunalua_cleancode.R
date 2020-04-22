@@ -38,7 +38,7 @@ er<-errors(flag=8, Cdata$pH, Cdata$TA/1000000,
       
 #average error for DIC based on pH and TA
 mean(er$DIC*1000000)
-sd(er$DIC*1000000)/nrow(er)
+sd(er$DIC*1000000)/sqrt(nrow(er))
 
 #convert CO2, HCO3, CO3, DIC, and Alk back to micromol for easier interpretation
 CO2[,c("CO2","HCO3","CO3","DIC","ALK")]<-CO2[,c("CO2","HCO3","CO3","DIC","ALK")]*1000000
