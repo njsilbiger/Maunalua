@@ -20,7 +20,7 @@ library(ggtext)
 library(modelr)
 
 #load data
-Cdata<-read.csv('chemicaldata_maunalua.csv')
+Cdata<-read.csv('chemicaldata_maunalua.csv', stringsAsFactors = TRUE)
 #remove rows with NAs
 Cdata<-Cdata[complete.cases(Cdata),]
 
