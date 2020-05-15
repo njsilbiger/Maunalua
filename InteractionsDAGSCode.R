@@ -8,37 +8,35 @@ estimates1<-data.frame(fixef(k_fit_brms)) %>%
   select(name, to, 3:6) %>%
   filter(name != 'Intercept', to != 'DICdiffstd', to !="Tempinstd") # remove the intercepts and interaction terms (Calculated below) for the DAG
 
-## pull out temp to DIC
+## pull out main effects of season, day/night and tide
 estimates<-data.frame(fixef(k_fit_brms)) %>%
   rownames_to_column(var = "name")%>%
   separate(name, into = c("to","name"), sep = "_") %>%
   select(name, to, 3:6) %>%
-  filter(to == 'DICdiffstd', name =="Tempinstd")%>% # remove the intercepts and interaction terms (Calculated below) for the DAG
+  filter(name %in% c("TideLowTide","SeasonSpring","DayNightNight"))%>% # remove the intercepts and interaction terms (Calculated below) for the DAG
   bind_rows(estimates1)
 
 ### deal with interaction terms. First for DIC models
 InteractionsDIC<-post %>%
-  transmute(logNNstd_Night_Fall_High    = `b_DICdiffstd_logNNstd` + `b_DICdiffstd_DayNightNight:logNNstd`,
-            logNNstd_Day_Fall_High = `b_DICdiffstd_logNNstd`,
+  transmute(logNNstd_Night_High_Both    = `b_DICdiffstd_logNNstd` + `b_DICdiffstd_DayNightNight:logNNstd`,
+            logNNstd_Day_High_Both = `b_DICdiffstd_logNNstd`,
             
-            logNNstd_Night_Fall_Low    = `b_DICdiffstd_logNNstd` + `b_DICdiffstd_DayNightNight:logNNstd` +`b_DICdiffstd_TideLowTide:logNNstd` +`b_DICdiffstd_TideLowTide:DayNightNight:logNNstd`,
-            logNNstd_Day_Fall_Low = `b_DICdiffstd_logNNstd`+`b_DICdiffstd_TideLowTide:logNNstd`,
+            logNNstd_Night_Low_Both    = `b_DICdiffstd_logNNstd` + `b_DICdiffstd_DayNightNight:logNNstd` +`b_DICdiffstd_TideLowTide:logNNstd` +`b_DICdiffstd_DayNightNight:TideLowTide:logNNstd`,
+            logNNstd_Day_Low_Both = `b_DICdiffstd_logNNstd`+`b_DICdiffstd_TideLowTide:logNNstd`,
             
-            logNNstd_Night_Spring_High    = `b_DICdiffstd_logNNstd` + `b_DICdiffstd_DayNightNight:logNNstd` + `b_DICdiffstd_logNNstd:SeasonSpring` +`b_DICdiffstd_DayNightNight:logNNstd:SeasonSpring`,
-            logNNstd_Day_Spring_High = `b_DICdiffstd_logNNstd`+ `b_DICdiffstd_logNNstd:SeasonSpring`,
-            
-            logNNstd_Night_Spring_Low    = `b_DICdiffstd_logNNstd` + `b_DICdiffstd_DayNightNight:logNNstd` + `b_DICdiffstd_logNNstd:SeasonSpring`+`b_DICdiffstd_TideLowTide:logNNstd` +`b_DICdiffstd_TideLowTide:DayNightNight:logNNstd:SeasonSpring`+`b_DICdiffstd_TideLowTide:logNNstd:SeasonSpring`+`b_DICdiffstd_DayNightNight:logNNstd:SeasonSpring`+`b_DICdiffstd_TideLowTide:DayNightNight:logNNstd`,
-            logNNstd_Day_Spring_Low = `b_DICdiffstd_logNNstd`+ `b_DICdiffstd_logNNstd:SeasonSpring`+`b_DICdiffstd_TideLowTide:logNNstd` +`b_DICdiffstd_TideLowTide:logNNstd:SeasonSpring`
-            
+            Temperature_Both_Both_Spring    = `b_DICdiffstd_Tempinstd` + `b_DICdiffstd_SeasonSpring:Tempinstd`,
+            Temperature_Both_Both_Fall = `b_DICdiffstd_Tempinstd`,
+  
   ) %>%
   gather(key, value) %>%
   group_by(key) %>%
   summarise(Estimate = mean(value), Est.Error = sd(value),
             Q2.5 = mean(value) - qt(1- 0.05/2, (n() - 1))*sd(value)/sqrt(n()),
             Q97.5 = mean(value) + qt(1- 0.05/2, (n() - 1))*sd(value)/sqrt(n())) %>%
-  separate(key, into = c("name", "DayNight", "Season", "Tide")) %>%
+  separate(key, into = c("name", "DayNight", "Tide", "Season")) %>%
   mutate(to = "DICdiffstd") %>%
   select(name,to, 2:8)
+
 
 # Interactions temp SGD
 InteractionsSGD<-post %>%
@@ -63,6 +61,74 @@ estimates<-bind_rows(estimates, InteractionsDIC, InteractionsSGD) %>% # bind wit
   mutate(DayNight = replace_na(DayNight, "Both"),
          Season = replace_na(Season, "Both"),
          Tide = replace_na(Tide, "Both")  )
+
+write.csv(estimates, "Output/BlackPointEstimates.csv")
+
+#Wailupe
+# pull out the estimates and set it up to join with the DAG
+estimates1<-data.frame(fixef(W_fit_brms)) %>%
+  rownames_to_column(var = "name")%>%
+  separate(name, into = c("to","name"), sep = "_") %>%
+  select(name, to, 3:6) %>%
+  filter(name != 'Intercept', to != 'DICdiffstd', to !="Tempinstd") # remove the intercepts and interaction terms (Calculated below) for the DAG
+
+## pull out main effects of season, day/night and tide
+estimates<-data.frame(fixef(W_fit_brms)) %>%
+  rownames_to_column(var = "name")%>%
+  separate(name, into = c("to","name"), sep = "_") %>%
+  select(name, to, 3:6) %>%
+  filter(name %in% c("TideLowTide","SeasonSpring","DayNightNight"))%>% # remove the intercepts and interaction terms (Calculated below) for the DAG
+  bind_rows(estimates1)
+
+### deal with interaction terms. First for DIC models
+InteractionsDIC<-Wpost %>%
+  transmute(logNNstd_Night_High_Both    = `b_DICdiffstd_logNNstd` + `b_DICdiffstd_DayNightNight:logNNstd`,
+            logNNstd_Day_High_Both = `b_DICdiffstd_logNNstd`,
+            
+            logNNstd_Night_Low_Both    = `b_DICdiffstd_logNNstd` + `b_DICdiffstd_DayNightNight:logNNstd` +`b_DICdiffstd_TideLowTide:logNNstd` +`b_DICdiffstd_DayNightNight:TideLowTide:logNNstd`,
+            logNNstd_Day_Low_Both = `b_DICdiffstd_logNNstd`+`b_DICdiffstd_TideLowTide:logNNstd`,
+            
+            Temperature_Both_Both_Spring    = `b_DICdiffstd_Tempinstd` + `b_DICdiffstd_SeasonSpring:Tempinstd`,
+            Temperature_Both_Both_Fall = `b_DICdiffstd_Tempinstd`,
+            
+  ) %>%
+  gather(key, value) %>%
+  group_by(key) %>%
+  summarise(Estimate = mean(value), Est.Error = sd(value),
+            Q2.5 = mean(value) - qt(1- 0.05/2, (n() - 1))*sd(value)/sqrt(n()),
+            Q97.5 = mean(value) + qt(1- 0.05/2, (n() - 1))*sd(value)/sqrt(n())) %>%
+  separate(key, into = c("name", "DayNight", "Tide", "Season")) %>%
+  mutate(to = "DICdiffstd") %>%
+  select(name,to, 2:8)
+
+
+# Interactions temp SGD
+InteractionsSGD<-Wpost %>%
+  transmute(
+    logSGDstd_Day_Spring_Both = `b_Tempinstd_logSGDstd` +`b_Tempinstd_logSGDstd:SeasonSpring`,
+    logSGDstd_Night_Spring_Both = `b_Tempinstd_logSGDstd` +`b_Tempinstd_logSGDstd:SeasonSpring` +`b_Tempinstd_DayNightNight:logSGDstd`+`b_Tempinstd_DayNightNight:logSGDstd:SeasonSpring`,
+    logSGDstd_Day_Fall_Both = `b_Tempinstd_logSGDstd`,
+    logSGDstd_Night_Fall_Both = `b_Tempinstd_logSGDstd`+`b_Tempinstd_DayNightNight:logSGDstd`
+    
+  ) %>%
+  gather(key, value) %>%
+  group_by(key) %>%
+  summarise(Estimate = mean(value), Est.Error = sd(value),
+            Q2.5 = mean(value) - qt(1- 0.05/2, (n() - 1))*sd(value)/sqrt(n()),
+            Q97.5 = mean(value) + qt(1- 0.05/2, (n() - 1))*sd(value)/sqrt(n())) %>%
+  separate(key, into = c("name", "DayNight", "Season", "Tide")) %>%
+  mutate(to = "Tempinstd") %>%
+  select(name,to, 2:8)
+
+#Bind everything together
+estimates<-bind_rows(estimates, InteractionsDIC, InteractionsSGD) %>% # bind with the estimates above
+  mutate(DayNight = replace_na(DayNight, "Both"),
+         Season = replace_na(Season, "Both"),
+         Tide = replace_na(Tide, "Both")  )
+
+write.csv(estimates, "Output/WailupeEstimates.csv")
+
+
 
 ### Make a DAG ####
 bigger_dag <- dagify(TAdiffstd ~ pHstd+ Tempinstd,
