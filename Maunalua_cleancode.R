@@ -1,6 +1,6 @@
 ## Run Bayesian SEM for Maunalua carbonate chemistry data
 ## By: Nyssa Silbiger
-## Last updated: 4/14/2020
+## Last updated: 5/16/2020
 ########################################################
 
 #libraries
@@ -18,6 +18,7 @@ library(patchwork)
 library(bayesplot)
 library(ggtext)
 library(modelr)
+library(ggfortify)
 
 #load data
 Cdata<-read.csv('chemicaldata_maunalua.csv', stringsAsFactors = TRUE)
@@ -152,6 +153,7 @@ ggplot( aes(x = NN, y = Phosphate))+
 ## brms does some weird things with columns names that have non-alphanumerics. Here I am removing them all
 colnames(Cdata)<-str_replace_all(colnames(Cdata), "[^[:alnum:]]", "")
 
+# These are all for a partially mediated model
 # run one site at a time because they have different biogeochem in the SGD
 NN_mod<-bf(logNNstd ~ logSGDstd) # NN ~ SGD which can change by site
 Temp_mod<-bf(Tempinstd ~ DayNight*logSGDstd*Season) ## SGD has cooler water and relationship changes by DayNight and Seaso
@@ -160,7 +162,11 @@ DIC_mod <- bf(DICdiffstd ~ DayNight*Tide*logNNstd +Season*Tempinstd) # DIC ~ nut
 pH_mod <- bf(pHstd ~ DICdiffstd + logSGDstd) # pH ~ NEP + SGD
 TA_mod<-bf(TAdiffstd ~ pHstd+Tempinstd) # NEC ~ pH and temperature 
 
+# compare to a fully mediated model which has direct pacths for SGD to NEP and NEC
+TA_mod_full<-bf(TAdiffstd ~ pHstd+Tempinstd +logSGDstd) # NEC ~ pH and temperature 
+
 # Run the model first for Black Point
+# partial
 k_fit_brms <- brm(TA_mod+
                     pH_mod+
                     DIC_mod+ 
@@ -169,6 +175,27 @@ k_fit_brms <- brm(TA_mod+
                     set_rescor(FALSE),
                   data=Cdata[Cdata$Site=='BP',],
                   cores=4, chains = 3)
+
+# calculate LOO (leave one out) diagnostics
+BP_loo<-loo(k_fit_brms, reloo = TRUE) # looks good!
+
+# run the fully mediated model
+k_fit_brms_full <- brm(TA_mod_full+
+                         pH_mod+
+                         DIC_mod+ 
+                         Temp_mod+
+                         NN_mod +
+                         set_rescor(FALSE),
+                       data=Cdata[Cdata$Site=='BP',],
+                       cores=4, chains = 3)
+
+# calculate LOO (leave one out) diagnostics
+BP_looFull<-loo(k_fit_brms_full, reloo = TRUE) # looks good!
+
+# difference  between partial and fill
+loo(k_fit_brms, k_fit_brms_full, reloo = TRUE)
+#there is almost no difference between the two models meaning that 
+# no new information is added in the fully mediated model.  Will evaluate the partially mediated model
 
 # view the effect sizes
 fixef(k_fit_brms)
@@ -202,6 +229,7 @@ p1+p2+p3+p4+p5+plot_layout(guides = "collect") +
   plot_annotation(title = 'Black Point Posterior Predictive Checks', tag_levels = "A")+
   ggsave("Output/Posteriorchecks_BlackPoint.pdf", width = 5, height = 5)
 ## pp checks look good!
+
 
 # plot the conditional effects for all of the BP models
 
@@ -483,8 +511,71 @@ Cof3<-post %>%
         axis.text.y  = element_text(hjust = 0),
         axis.ticks.y = element_blank())
 
-  ###### Run Model for Wailupe ###############
+# pull out the estimates and set it up to join with the DAG
+estimates1<-data.frame(fixef(k_fit_brms)) %>%
+  rownames_to_column(var = "name")%>%
+  separate(name, into = c("to","name"), sep = "_") %>%
+  select(name, to, 3:6) %>%
+  filter(name != 'Intercept', to != 'DICdiffstd', to !="Tempinstd") # remove the intercepts and interaction terms (Calculated below) for the DAG
 
+## pull out main effects of season, day/night and tide
+estimates<-data.frame(fixef(k_fit_brms)) %>%
+  rownames_to_column(var = "name")%>%
+  separate(name, into = c("to","name"), sep = "_") %>%
+  select(name, to, 3:6) %>%
+  filter(name %in% c("TideLowTide","SeasonSpring","DayNightNight"))%>% # remove the intercepts and interaction terms (Calculated below) for the DAG
+  bind_rows(estimates1)
+
+### deal with interaction terms. First for DIC models
+InteractionsDIC<-post %>%
+  transmute(logNNstd_Night_High_Both    = `b_DICdiffstd_logNNstd` + `b_DICdiffstd_DayNightNight:logNNstd`,
+            logNNstd_Day_High_Both = `b_DICdiffstd_logNNstd`,
+            
+            logNNstd_Night_Low_Both    = `b_DICdiffstd_logNNstd` + `b_DICdiffstd_DayNightNight:logNNstd` +`b_DICdiffstd_TideLowTide:logNNstd` +`b_DICdiffstd_DayNightNight:TideLowTide:logNNstd`,
+            logNNstd_Day_Low_Both = `b_DICdiffstd_logNNstd`+`b_DICdiffstd_TideLowTide:logNNstd`,
+            
+            Temperature_Both_Both_Spring    = `b_DICdiffstd_Tempinstd` + `b_DICdiffstd_SeasonSpring:Tempinstd`,
+            Temperature_Both_Both_Fall = `b_DICdiffstd_Tempinstd`,
+            
+  ) %>%
+  gather(key, value) %>%
+  group_by(key) %>%
+  summarise(Estimate = mean(value), Est.Error = sd(value),
+            Q2.5 = mean(value) - qt(1- 0.05/2, (n() - 1))*sd(value)/sqrt(n()),
+            Q97.5 = mean(value) + qt(1- 0.05/2, (n() - 1))*sd(value)/sqrt(n())) %>%
+  separate(key, into = c("name", "DayNight", "Tide", "Season")) %>%
+  mutate(to = "DICdiffstd") %>%
+  select(name,to, 2:8)
+
+
+# Interactions temp SGD
+InteractionsSGD<-post %>%
+  transmute(
+    logSGDstd_Day_Spring_Both = `b_Tempinstd_logSGDstd` +`b_Tempinstd_logSGDstd:SeasonSpring`,
+    logSGDstd_Night_Spring_Both = `b_Tempinstd_logSGDstd` +`b_Tempinstd_logSGDstd:SeasonSpring` +`b_Tempinstd_DayNightNight:logSGDstd`+`b_Tempinstd_DayNightNight:logSGDstd:SeasonSpring`,
+    logSGDstd_Day_Fall_Both = `b_Tempinstd_logSGDstd`,
+    logSGDstd_Night_Fall_Both = `b_Tempinstd_logSGDstd`+`b_Tempinstd_DayNightNight:logSGDstd`
+    
+  ) %>%
+  gather(key, value) %>%
+  group_by(key) %>%
+  summarise(Estimate = mean(value), Est.Error = sd(value),
+            Q2.5 = mean(value) - qt(1- 0.05/2, (n() - 1))*sd(value)/sqrt(n()),
+            Q97.5 = mean(value) + qt(1- 0.05/2, (n() - 1))*sd(value)/sqrt(n())) %>%
+  separate(key, into = c("name", "DayNight", "Season", "Tide")) %>%
+  mutate(to = "Tempinstd") %>%
+  select(name,to, 2:8)
+
+#Bind everything together
+estimates<-bind_rows(estimates, InteractionsDIC, InteractionsSGD) %>% # bind with the estimates above
+  mutate(DayNight = replace_na(DayNight, "Both"),
+         Season = replace_na(Season, "Both"),
+         Tide = replace_na(Tide, "Both")  )
+
+write.csv(estimates, "Output/BlackPointEstimates.csv")
+
+  ###### Run Model for Wailupe ###############
+# partially mediated model
 W_fit_brms <- brm(TA_mod+
                     pH_mod+
                     DIC_mod+ 
@@ -493,6 +584,26 @@ W_fit_brms <- brm(TA_mod+
                     set_rescor(FALSE), 
                   data=Cdata[Cdata$Site=='W',],
                   cores=4, chains = 3)
+# calculate LOO (leave one out) diagnostics
+W_loo<-loo(W_fit_brms, reloo = TRUE) # looks good!
+
+
+#fully mediated model
+W_fit_brms_full <- brm(TA_mod_full+
+                    pH_mod+
+                    DIC_mod+ 
+                    Temp_mod+
+                    NN_mod +
+                    set_rescor(FALSE), 
+                  data=Cdata[Cdata$Site=='W',],
+                  cores=4, chains = 3)
+
+# calculate LOO (leave one out) diagnostics
+W_looFull<-loo(W_fit_brms_full, reloo = TRUE) # looks good!
+
+# difference  between partial and fill
+loo(W_fit_brms, W_fit_brms_full, reloo = TRUE)
+## difference is 5.3 +/- 3.5 suggesting some new information is added at Wailupe
 
 # view the effect sized
 fixef(W_fit_brms)
@@ -841,6 +952,72 @@ WCof3<-Wpost %>%
         axis.text.y  = element_text(hjust = 0),
         axis.ticks.y = element_blank())
 
+
+# pull out the estimates and set it up to join with the DAG
+estimates1<-data.frame(fixef(W_fit_brms)) %>%
+  rownames_to_column(var = "name")%>%
+  separate(name, into = c("to","name"), sep = "_") %>%
+  select(name, to, 3:6) %>%
+  filter(name != 'Intercept', to != 'DICdiffstd', to !="Tempinstd") # remove the intercepts and interaction terms (Calculated below) for the DAG
+
+## pull out main effects of season, day/night and tide
+estimates<-data.frame(fixef(W_fit_brms)) %>%
+  rownames_to_column(var = "name")%>%
+  separate(name, into = c("to","name"), sep = "_") %>%
+  select(name, to, 3:6) %>%
+  filter(name %in% c("TideLowTide","SeasonSpring","DayNightNight"))%>% # remove the intercepts and interaction terms (Calculated below) for the DAG
+  bind_rows(estimates1)
+
+### deal with interaction terms. First for DIC models
+InteractionsDIC<-Wpost %>%
+  transmute(logNNstd_Night_High_Both    = `b_DICdiffstd_logNNstd` + `b_DICdiffstd_DayNightNight:logNNstd`,
+            logNNstd_Day_High_Both = `b_DICdiffstd_logNNstd`,
+            
+            logNNstd_Night_Low_Both    = `b_DICdiffstd_logNNstd` + `b_DICdiffstd_DayNightNight:logNNstd` +`b_DICdiffstd_TideLowTide:logNNstd` +`b_DICdiffstd_DayNightNight:TideLowTide:logNNstd`,
+            logNNstd_Day_Low_Both = `b_DICdiffstd_logNNstd`+`b_DICdiffstd_TideLowTide:logNNstd`,
+            
+            Temperature_Both_Both_Spring    = `b_DICdiffstd_Tempinstd` + `b_DICdiffstd_SeasonSpring:Tempinstd`,
+            Temperature_Both_Both_Fall = `b_DICdiffstd_Tempinstd`,
+            
+  ) %>%
+  gather(key, value) %>%
+  group_by(key) %>%
+  summarise(Estimate = mean(value), Est.Error = sd(value),
+            Q2.5 = mean(value) - qt(1- 0.05/2, (n() - 1))*sd(value)/sqrt(n()),
+            Q97.5 = mean(value) + qt(1- 0.05/2, (n() - 1))*sd(value)/sqrt(n())) %>%
+  separate(key, into = c("name", "DayNight", "Tide", "Season")) %>%
+  mutate(to = "DICdiffstd") %>%
+  select(name,to, 2:8)
+
+
+# Interactions temp SGD
+InteractionsSGD<-Wpost %>%
+  transmute(
+    logSGDstd_Day_Spring_Both = `b_Tempinstd_logSGDstd` +`b_Tempinstd_logSGDstd:SeasonSpring`,
+    logSGDstd_Night_Spring_Both = `b_Tempinstd_logSGDstd` +`b_Tempinstd_logSGDstd:SeasonSpring` +`b_Tempinstd_DayNightNight:logSGDstd`+`b_Tempinstd_DayNightNight:logSGDstd:SeasonSpring`,
+    logSGDstd_Day_Fall_Both = `b_Tempinstd_logSGDstd`,
+    logSGDstd_Night_Fall_Both = `b_Tempinstd_logSGDstd`+`b_Tempinstd_DayNightNight:logSGDstd`
+    
+  ) %>%
+  gather(key, value) %>%
+  group_by(key) %>%
+  summarise(Estimate = mean(value), Est.Error = sd(value),
+            Q2.5 = mean(value) - qt(1- 0.05/2, (n() - 1))*sd(value)/sqrt(n()),
+            Q97.5 = mean(value) + qt(1- 0.05/2, (n() - 1))*sd(value)/sqrt(n())) %>%
+  separate(key, into = c("name", "DayNight", "Season", "Tide")) %>%
+  mutate(to = "Tempinstd") %>%
+  select(name,to, 2:8)
+
+#Bind everything together
+estimates<-bind_rows(estimates, InteractionsDIC, InteractionsSGD) %>% # bind with the estimates above
+  mutate(DayNight = replace_na(DayNight, "Both"),
+         Season = replace_na(Season, "Both"),
+         Tide = replace_na(Tide, "Both")  )
+
+write.csv(estimates, "Output/WailupeEstimates.csv")
+
+### Make a DAG (see DAG.R) ####
+
 ######################## Make some summary tables #############
 Cdata %>%
   select(Site, Season, NN, pH, percentsgd,Salinity, Silicate,Tempin, DICdiff, TAdiff) %>%
@@ -884,3 +1061,48 @@ Cdata %>%
   select(Site, DayNight, Season, Tide, NN) %>%
   group_by(Site, DayNight, Tide, Season)%>%
   summarise_all(.funs = list(~max(.)))
+
+## Make a PCA of all the environmental data. Facet it by side and show differences in day/night, tide, and season
+df_BP <- Cdata %>%
+  filter(Site =="BP")%>%
+  mutate(season_day = paste(Season, DayNight)) # makes it easier to code
+
+
+pca_res <- prcomp(df_BP%>% # makes it easier to code
+                    select(logSGDstd, logNNstd, pHstd, Tempinstd, DICdiffstd, TAdiffstd))
+
+# make plot for Black Point
+PCA_BP<-autoplot(pca_res, data = df_BP, colour = 'Tide', shape = "season_day",
+         loadings.label.label = c("% SGD", "N+N","pH","Temperature","NEP","NEC"), 
+         loadings.label.repel=T,
+         loadings = TRUE, loadings.colour = 'lightblue',loadings.label.colour = 'dodgerblue',
+         loadings.label = TRUE, loadings.label.size = 4, loadings.label.vjust = 1.2)+
+  scale_shape_manual(values = c(1,16,2,17))+
+  scale_color_manual(values = c("black","grey"))+
+  theme_few()+
+  theme(legend.title=element_blank(),
+        legend.position = "none")
+
+#Wailupe
+df_W <- Cdata %>%
+  filter(Site =="W")%>%
+  mutate(season_day = paste(Season, DayNight)) # makes it easier to code
+
+
+pca_res_W <- prcomp(df_W%>% # makes it easier to code
+                    select(logSGDstd, logNNstd, pHstd, Tempinstd, DICdiffstd, TAdiffstd))
+
+# make plot for Black Point
+PCA_W<-autoplot(pca_res_W, data = df_W, colour = 'Tide', shape = "season_day",
+                 loadings.label.label = c("% SGD", "N+N","pH","Temperature","NEP","NEC"), 
+                 loadings.label.repel=T,
+                 loadings = TRUE, loadings.colour = 'lightblue',loadings.label.colour = 'dodgerblue',
+                 loadings.label = TRUE, loadings.label.size = 4, loadings.label.vjust = 1.2)+
+  scale_shape_manual(values = c(1,16,2,17))+
+  scale_color_manual(values = c("black","grey"))+
+  theme_few()+
+  theme(legend.title=element_blank())
+
+# bring together in patchwork
+PCA_BP+PCA_W + plot_layout(guides = 'collect') + plot_annotation(tag_levels = "A")+
+  ggsave("Output/PCAplots.pdf", height = 5, width = 10)

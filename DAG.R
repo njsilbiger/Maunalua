@@ -3,10 +3,10 @@ library(rsvg)
 library(DiagrammeRsvg)
 
 #embed windows fonts
-Sys.setenv(R_GSCMD = "C:/Program Files/gs/gs9.52/bin/gswin64c.exe")
+#Sys.setenv(R_GSCMD = "C:/Program Files/gs/gs9.52/bin/gswin64c.exe")
 
 
-#Black point
+#Black point DAG showing the interaction terms
 graph <- grViz("
 
 digraph boxes_and_circles {
@@ -53,7 +53,7 @@ graph [nodesep = 0.1]
 }
 ")
 
-# Individual effects
+# DAG showing marginal effects
 graph_BlackPoint <- grViz("
 
 digraph boxes_and_circles {
