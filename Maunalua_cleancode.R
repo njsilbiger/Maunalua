@@ -134,20 +134,27 @@ BP.R <- round(cor(Cdata$NN[Cdata$Site =="BP"], Cdata$Phosphate[Cdata$Site =="BP"
 W.R <- round(cor(Cdata$NN[Cdata$Site =="W"], Cdata$Phosphate[Cdata$Site =="W"]),2)
 #put it in a dataframe
 cors<-data.frame(R = c(BP.R, W.R), Site = c("Black Point", "Wailupe"))
+## get the slopes of the relationship between N and P to say something about N:P ratios at each site
+BP.NP<-lm(NN~Phosphate, data = Cdata[Cdata$Site =="BP",])
+W.NP<-lm(NN~Phosphate, data = Cdata[Cdata$Site =="W",])
+summary(BP.NP)$coefficients[2]
+summary(W.NP)$coefficients[2]
 
 #make a plot
 Cdata %>%
   mutate(Site = ifelse(Site == "BP", "Black Point", "Wailupe"))%>%
-ggplot( aes(x = NN, y = Phosphate))+
-  geom_point(color = "grey")+
-  geom_smooth(method = "lm", formula = "y ~ x",color = "black")+
-  geom_text(data = cors, aes(x = 7, y = 0.8, label = paste("Pearson's R =", R)))+
-  facet_wrap(~Site)+
-  xlab(expression(atop("Nitrate + Nitrite", paste("(",mu, "mol L"^-1,")"))))+
-  ylab(expression(atop("Phosphate", paste("(",mu, "mol L"^-1,")"))))+
+ggplot( aes(y = NN, x = Phosphate, group = Site, color = Site))+
+  geom_point()+
+  geom_smooth(method = "lm", formula = "y ~ x")+
+  scale_color_manual(values = c("firebrick4", "orange"), name = " ")+
+   #  geom_text(data = cors, aes(x = 7, y = 0.8, label = paste("Pearson's R =", R)))+
+#  facet_wrap(~Site)+
+  ylab(expression(atop("Nitrate + Nitrite", paste("(",mu, "mol L"^-1,")"))))+
+  xlab(expression(atop("Phosphate", paste("(",mu, "mol L"^-1,")"))))+
   theme_bw()+
-  theme(strip.background = NULL)+
-  ggsave("Output/NNvsPO.pdf", useDingbats = FALSE, width = 8, height = 4)
+#  theme(strip.background = NULL)+
+  ggsave("Output/NNvsPO.pdf", useDingbats = FALSE, width = 6, height = 4)
+
 
 ### model a bayesian SEM (individual one for each site since the geo chemistry of the SGD is different)
 ## brms does some weird things with columns names that have non-alphanumerics. Here I am removing them all
