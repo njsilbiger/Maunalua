@@ -1,6 +1,5 @@
 library(matrixStats)
 library(facetscales)
-library(gt)
 
 # Need to source the Maunalua Clean code before running this.
 
@@ -121,15 +120,6 @@ PredictionsChange<-Predictions_logNN_Temp %>%
 All_Predictions<-bind_rows(Predictions_nochange, PredictionsChange) %>%
   mutate(Site = "Kupikipiki'o") 
 
-All_Predictions %>% ggplot(aes(x = predict_backcalc, fill = Obs_pred), alpha = 0.2)+
-  geom_density(alpha = 0.2)+
-  facet_wrap(~.category, scales = "free")+
-  theme_bw()
-
-All_Predictions %>% ggplot(aes(x = Obs_pred, y = predict_backcalc, fill = Obs_pred))+
-  geom_violin()+
-  facet_wrap(~.category, scales = "free")+
-  theme_bw()
 
 ## Now for Wailupe ##########
 Predictions_nochangeW<-predicted_draws(W_fit_brms, newdata=Cdata_W) %>%
@@ -216,16 +206,6 @@ PredictionsChangeW<-Predictions_logNN_TempW %>%
 ## bring both together
 All_PredictionsW<-bind_rows(Predictions_nochangeW, PredictionsChangeW)
 
-All_PredictionsW %>% ggplot(aes(x = predict_backcalc, fill = Obs_pred), alpha = 0.2)+
-  geom_density(alpha = 0.2)+
-  facet_wrap(~.category, scales = "free")+
-  theme_bw()
-
-All_PredictionsW %>% ggplot(aes(x = Obs_pred, y = predict_backcalc, fill = Obs_pred))+
-  geom_violin()+
-  facet_wrap(~.category, scales = "free")+
-  theme_bw()
-
 ## Bind Both BP and Wailupe
 Final_Predictions<-bind_rows(All_Predictions, All_PredictionsW) %>%
   mutate(Obs_pred = fct_relevel(Obs_pred, levels =c("Original SGD","Increased SGD")))
@@ -264,13 +244,6 @@ Final_Predictions %>%
                 labeller = labeller(.category = cat.labs)) # this changes the axis to what I want
 
 
-scales_x <- list(
-  TAdiffstd = scale_x_continuous(),
-  pHstd = scale_x_continuous(),
-  DICdiffstd = scale_x_continuous(),
-  Tempinstd = scale_x_continuous(),
-  logNNstd = scale_x_log10()
-)
 
 # calculate medians
 Meds<-Final_Predictions %>%
@@ -310,21 +283,6 @@ Meds %>%
   select(-c(Obs_pred, predict_backcalc)) %>%
   pivot_wider(names_from = Site, values_from = c(per.change))
 
-## # of samples <pH of 8.0, # samples <0 for NEP and NEC 
-Final_Predictions %>%
-  #filter(.category == 'pHstd') %>%
-  mutate(Lessthanvalue = case_when(.category =="TAdiffstd" & predict_backcalc<0 ~1,
-                                   .category =="pHstd" & predict_backcalc<8 ~1,
-                                   .category =="DICdiffstd" & predict_backcalc<0 ~1,
-                                   TRUE ~0)) %>%
-  group_by(.category, Site, Obs_pred) %>%
-  tally(Lessthanvalue) %>%
-  mutate(percentless = case_when(Site =="Kupikipiki'o" ~ 100*(n/149),
-                                 Site == "Wailupe" ~ 100*(n/155))
-         ) %>%
-  select(!n) %>%
-  filter(.category %in% c("TAdiffstd","DICdiffstd","pHstd")) %>%
-  pivot_wider(names_from = Obs_pred, values_from = percentless)
 
 # calculate change in current and 25% increase predictions
 predictionchange<-Final_Predictions %>%
@@ -357,13 +315,8 @@ predictionchange %>%
             p_decreased = round(100*(n_lessthan / n_samples)),2 )%>%
   select(.category, Site, p_decreased) %>%
   pivot_wider(names_from = .category, values_from = p_decreased) %>%
- gt()%>%
-   tab_header(
-    title = "Percent of samples that decreased when SGD increased by 25%"
-    #subtitle = "Daily measurements in New York City (May 1-10, 1973)"
-  ) 
-  
-# join with the lat and long data
+
+  # join with the lat and long data
 .row <- c(seq(1,nrow(Cdata_BP),1),seq(1,nrow(Cdata_W),1))
 mappredictions<-Cdata %>%
   select(Lat, Long, Site) %>%
@@ -380,6 +333,4 @@ mappredictions %>%
             n_lessthan = sum(mean.val < 0),
             p_decreased = round(100*(n_lessthan / n_samples))) %>%
   select(.category, Site, p_decreased) %>%
-  pivot_wider(names_from = Site, values_from = p_decreased) %>%
-  gt()
-  
+  pivot_wider(names_from = Site, values_from = p_decreased) 
