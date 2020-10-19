@@ -32,13 +32,14 @@ Data<-data.frame(SI,Radon)
 
 ggplot(Data, aes(x = Radon, y = SI))+
   geom_point()+
- # coord_trans(x="log", y="log")+
-  scale_x_continuous(trans='log') +
-  scale_y_continuous(trans='log')+
+#  coord_trans(x="log10", y="log10")+
+  scale_x_continuous(trans='log10') +
+  scale_y_continuous(trans='log10')+
   geom_smooth(method = "lm")+
-  xlab("log(Radon)")+
-  ylab("log(Silicate)")+
-  theme_bw()
+  xlab(expression("log(Radon) DPM m"^{-3}))+
+  ylab(expression(paste("log(Silicate) ", mu,"mol L"^{-1})))+
+  theme_bw()+
+  ggsave("Output/radon_silicate.png")
 
 mod<-lm(log(SI)~log(Radon), data = Data)
 anova(mod)

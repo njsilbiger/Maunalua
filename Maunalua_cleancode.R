@@ -1,6 +1,6 @@
 ## Run Bayesian SEM for Maunalua carbonate chemistry data
 ## By: Nyssa Silbiger
-## Last updated: 5/16/2020
+## Last updated: 10/19/2020
 ########################################################
 
 #libraries
@@ -50,15 +50,15 @@ Cdata[,c("CO2","HCO3","CO3","DIC","OmegaArag","OmegaCalcite","pCO2","fCO2")]<-
 #endmembers from Christina
 #black point
 BP.end.DIC<-3038
-BP.end.TA<-2945
+BP.end.TA<-2946
 BP.end.Sal<-4.9
 BP.end.PO<-3.7
 BP.end.NN<-163
 BP.end.Si<-740
 
 #wailupe
-W.end.DIC<-1780
-W.end.TA<-1743
+W.end.DIC<-1779
+W.end.TA<-1754
 W.end.Sal<-2
 W.end.PO<-1.7
 W.end.NN<-71
