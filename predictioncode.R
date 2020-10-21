@@ -476,3 +476,9 @@ mappredictions %>%
   select(.category, Site, p_decreased) %>%
   pivot_wider(names_from = Site, values_from = p_decreased) %>%
   na.omit()
+
+mappredictions %>%
+  group_by(.category, Site) %>%
+  summarise(min50 = min(mean.val_per,na.rm=TRUE), max50 = max(mean.val_per,na.rm=TRUE),
+            minneg50 = min(mean.val_perneg50,na.rm=TRUE), maxneg50 = max(mean.val_perneg50,na.rm=TRUE))
+  

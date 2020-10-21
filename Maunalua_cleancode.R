@@ -877,23 +877,25 @@ WCof<-Wpost %>%
 
 #Make the plot
 CoefPlot<-WCof%>%
-  ggplot(aes(x = value, y = reorder(independent, value), alpha = sig, color = Site)) +  # note how we used `reorder()` to arrange the coefficients
+  ggplot(aes(x = value, y = reorder(independent, value), shape = sig, color = Site)) +  # note how we used `reorder()` to arrange the coefficients
   geom_vline(xintercept = 0, alpha = 1/10, color = 'firebrick4') +
   geom_point(size = 2)+
   geom_errorbarh(aes(xmin = .lower, xmax = .upper), height = 0)+
-  scale_alpha_manual(values = c(0.2,1))+
+  #scale_alpha_manual(values = c(0.2,1))+
+  scale_shape_manual(values = c(1,16))+
   scale_color_manual(values = c("firebrick4", "orange"), name = " ")+
   # stat_pointintervalh(point_interval = mode_hdi, .width = .95, 
   #                     size = 3/4, color = "firebrick4") +
   labs(#title = "Black Point",
        x = NULL, y = NULL) +
   theme_bw() +
-  guides(alpha = FALSE)+
+  guides(shape = FALSE)+
   theme(panel.grid   = element_blank(),
         panel.grid.major.y = element_line(color = alpha("firebrick4", 1/4), linetype = 3),
         axis.text.y  = element_text(hjust = 0),
         axis.ticks.y = element_blank(),
         legend.position = "bottom",
+        legend.text=element_text(size=14),
         strip.background = element_blank(),
         strip.text = element_text(size = 14, face = "bold")
             )+
