@@ -447,9 +447,13 @@ R8<-R$`TAdiffstd.TAdiffstd_Tempinstd`%>%
   guides(colour = guide_colourbar(title.position="top", title.hjust = 0.5))
 
 ## bring them all together in patchwork
-(R1|R2)/(R3|R6)/(R4|R5)/(R7|R8)+plot_layout(guides = "collect")+
-  plot_annotation(tag_levels = "A")+
-  ggsave("Output/marginaleffects_BlackPoint.pdf", width = 10, height = 15, useDingbats = FALSE)
+R<-(R1|R2)/(R3|R6)/(R4|R5)/(R7|R8)+plot_layout(guides = "collect")+
+  plot_annotation(tag_levels = "A")&
+  theme(axis.title.x = element_text(size = 14),
+        axis.title.y = element_text(size = 14),
+        axis.text = element_text(size = 11))
+
+  ggsave("Output/marginaleffects_BlackPoint.pdf",R, width = 10, height = 15, useDingbats = FALSE)
 
 ## get the posterior
 post <- posterior_samples(k_fit_brms)
@@ -852,9 +856,12 @@ WR8<-W$`TAdiffstd.TAdiffstd_Tempinstd`%>%
   guides(colour = guide_colourbar(title.position="top", title.hjust = 0.5))
 
 # Bring it together in patchwork
-(WR1|WR2)/(WR3|WR6)/(WR4|WR5)/(WR7|WR8)+plot_layout(guides = "collect")+
-  plot_annotation(tag_levels = "A")+
-  ggsave("Output/marginaleffects_Wailupe.pdf", width = 10, height = 15, useDingbats = FALSE)
+A<-(WR1|WR2)/(WR3|WR6)/(WR4|WR5)/(WR7|WR8)+plot_layout(guides = "collect")+
+  plot_annotation(tag_levels = "A")&
+  theme(axis.title.x = element_text(size = 14),
+        axis.title.y = element_text(size = 14),
+        axis.text = element_text(size = 11))
+  ggsave("Output/marginaleffects_Wailupe.pdf",A, width = 10, height = 15, useDingbats = FALSE)
 
 
 ## get the posterior
